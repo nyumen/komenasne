@@ -23,7 +23,7 @@ Python3.x系のインストールが必要です。
 ※Windowsの場合、Microsoft Storeで最新版を入れておくのが構築が楽かもしれません。
 https://www.microsoft.com/ja-jp/search?q=python
 
-Pythonインストール後に、pipコマンドで以下のモジュールをインストールしてください。
+Pythonインストール後に、コマンドプロンプトで以下のコマンドを実行してください。
 pip install requests
 pip install beautifulsoup4
 
@@ -41,8 +41,8 @@ torne等で動画を再生した直後に一旦停止してから、このスク
 「PC TV Plus」と「jkcommentviewer」の組み合わせであれば、ニコ生のようにコメントをオーバーレイ表示することも可能です。
 
 起動方法：
-コマンドラインで "python komenasne.py" を入力
-もしくはエクスプローラーで komenasne.py をダブルクリック
+コマンドプロンプトでディレクトリに移動してから "python komenasne.py" を入力してください。
+一度正常に起動すれば、エクスプローラーでダブルクリックで起動も可能です。
 
 その後、コメントビューワーを全画面にするなどしてから、動画の一旦停止を解除してから続きを再生してください。
 Windows機の場合、ALTキーを押しながらTABでタスクを切り替えるのが使いやすいです。
