@@ -125,19 +125,22 @@ for ip_addr in nasne_ips:
         playing_content_id = playing_info['client'][0]['content']['id']
         item = get_item(ip_addr, playing_content_id)
         #print(item)
-        print(item['id'] + ' ' + item['title'] + ' ' + item['channelName'] + ' ' + item['startDateTime'])
+        print(item['id'] + ' ' + item['title'] + ' ' + item['channelName'])
         jkid = get_jkid(item['channelName'])
         if not jkid:
              print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
              sys.exit(1)
-        print(item['channelName'] + ' ' + jkid)
 
         start_date_time = get_datetime(item['startDateTime'])
         end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
-        print(start_date_time,end_date_time)
-        #print()
+        print("start:" + str(start_date_time), "end:" + str(end_date_time))
+
         ts_time = start_date_time - datetime.timedelta(hours=4)
-        url = get_tsurl(jkid, ts_time)
+        try:
+            url = get_tsurl(jkid, ts_time)
+        except:
+             print('エラー：タイムシフト番組が見つかりません。')
+             sys.exit(1)
 
         if jkcommentviewer_path is None:
             shift_time = ts_time.strftime('%H:%M:%S')
