@@ -143,6 +143,9 @@ for ip_addr in nasne_ips:
              sys.exit(1)
 
         if jkcommentviewer_path is None:
+            if ts_time.strftime('%Y%m%d') == '20201216':
+                # 新ニコニコ実況の初日は11時開始のため7時間減算
+                ts_time = ts_time - datetime.timedelta(hours=7)
             shift_time = ts_time.strftime('%H:%M:%S')
             browser_url = url + '#' + shift_time
             print(browser_url)
