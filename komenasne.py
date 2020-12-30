@@ -10,6 +10,7 @@ import subprocess
 import configparser
 import platform
 import os
+import sys
 
 '''
 # 必要
@@ -38,10 +39,20 @@ jkchs = {
     '総合' : 1,
     'Ｅテレ' : 2,
     '日テレ' : 4,
-    '朝日' : 5,
+    '読売テレビ' : 4, # 関西
+    '中京テレビ' : 4, # 中部
+    'テレビ朝日' : 5,
+    'ＡＢＣテレビ' : 5, # 関西
+    'メ～テレ' : 5, # 中部
     'ＴＢＳ' : 6,
+    'ＭＢＳ' : 6, # 関西
+    'ＣＢＣ' : 6, # 中部
     'テレビ東京' : 7,
+    'テレビ大阪' : 7, # 関西
+    'テレビ愛知' : 7, # 中部
     'フジテレビ' : 8,
+    '関西テレビ' : 8, # 関西
+    '東海テレビ' : 8, # 中部
     'ＭＸ' : 9,
     'テレ玉' : 10,
     'ＴＶＫ' : 11,
@@ -70,6 +81,7 @@ def get_jkid(channel_name):
     for ch in jkchs:
         if ch in channel_name:
             return 'jk' + str(jkchs[ch])
+    return False
 
 def get_datetime(date_time):
     return datetime.datetime.strptime(date_time, "%Y-%m-%dT%H:%M:%S+09:00")
@@ -92,13 +104,8 @@ def get_tsurl(jkid, date_time):
 # init
 ini = configparser.ConfigParser()
 ini.read('./komenasne.ini', 'UTF-8')
-nasne_ips = [ini['NASNE']['nasne1']]
-if ini['NASNE']['nasne2']:
-    nasne_ips.append(ini['NASNE']['nasne2'])
-if ini['NASNE']['nasne3']:
-    nasne_ips.append(ini['NASNE']['nasne3'])
-if ini['NASNE']['nasne4']:
-    nasne_ips.append(ini['NASNE']['nasne4'])
+nase_ini = ini['NASNE']['ip']
+nasne_ips = [x.strip() for x in nase_ini.split(',')]
 
 jkcommentviewer_path = None
 if ini['PLAYER']['jkcommentviewer_path']:
@@ -118,16 +125,22 @@ for ip_addr in nasne_ips:
         playing_content_id = playing_info['client'][0]['content']['id']
         item = get_item(ip_addr, playing_content_id)
         #print(item)
-        print(item['id'] + ' ' + item['title'] + ' ' + item['startDateTime'])
+        print(item['id'] + ' ' + item['title'] + ' ' + item['channelName'])
         jkid = get_jkid(item['channelName'])
-        print(item['channelName'] + ' ' + jkid)
+        if not jkid:
+             print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
+             sys.exit(1)
 
         start_date_time = get_datetime(item['startDateTime'])
         end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
-        print(start_date_time,end_date_time)
-        #print()
+        print("start:" + str(start_date_time), "end:" + str(end_date_time))
+
         ts_time = start_date_time - datetime.timedelta(hours=4)
-        url = get_tsurl(jkid, ts_time)
+        try:
+            url = get_tsurl(jkid, ts_time)
+        except:
+             print('エラー：タイムシフト番組が見つかりません。')
+             sys.exit(1)
 
         if jkcommentviewer_path is None:
             shift_time = ts_time.strftime('%H:%M:%S')
@@ -141,6 +154,9 @@ for ip_addr in nasne_ips:
             subprocess.Popen([jkcommentviewer_path, jkcommentviewer_url])
 
         break
+        sys.exit(0)
 
+print('エラー：再生中のnasneの動画が見つからないため、終了します。')
+sys.exit(1)
 
 
