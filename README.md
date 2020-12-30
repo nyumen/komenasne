@@ -1,5 +1,6 @@
 # komenasne について
 
+### [ダウンロードはこちら](https://github.com/nyumen/komenasne/archive/main.zip)
 
 ## 概要
 nasneの動画再生と合わせて、ニコ生のタイムシフトの実況コメントを再生します。
