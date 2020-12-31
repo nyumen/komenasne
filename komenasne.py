@@ -119,6 +119,7 @@ def replace_title(title):
     title = title.replace('\ue183', '[多]')
     title = title.replace('\ue18c', '[映]')
     title = title.replace('\ue18d', '[無]')
+    title = title.replace('\ue180', '[デ]')
     title = title.replace('\ue2ca1', 'No1')
     title = title.replace('/', '／')
     title = title.replace('<', '＜')
@@ -152,7 +153,7 @@ def rewrite_vpos(start_date_unixtime, xml_line):
 
 
 # init
-ini = configparser.ConfigParser()
+ini = configparser.ConfigParser(interpolation=None)
 ini.read('./komenasne.ini', 'UTF-8')
 nase_ini = ini['NASNE']['ip']
 nasne_ips = [x.strip() for x in nase_ini.split(',')]
@@ -168,6 +169,8 @@ if commeon_path and is_windows:
         commeon_path = ini['PLAYER']['commeon_path']
         commeon_path = commeon_path.replace(os.sep, os.sep + os.sep)
         kakolog_dir = ini['LOG']['kakolog_dir']
+        if '%temp%' in kakolog_dir:
+            kakolog_dir = kakolog_dir.replace('%temp%', os.environ['temp'])
         kakolog_dir = kakolog_dir.replace(os.sep, os.sep + os.sep)
 
 s = requests.Session();
