@@ -132,7 +132,6 @@ def replace_title(title):
     title = title.replace('\ue195', '[終]')
     title = title.replace('\ue0fe', '[字]')
     title = title.replace('\ue2ca1', 'No1')
-    title = title.replace('\u3000', '　')
     title = title.replace('/', '／')
     title = title.replace('<', '＜')
     title = title.replace('>', '＞')
@@ -207,7 +206,7 @@ for ip_addr in nasne_ips:
         playing_content_id = playing_info['client'][0]['content']['id']
         item = get_item(ip_addr, playing_content_id)
         #print(item)
-        print(item['title'].encode('unicode-escape'))
+        #print(item['title'].encode('unicode-escape'))
         title = replace_title(item['title'])
         print(item['id'] + ' ' + title + ' ' + item['channelName'])
         jkid = get_jkid(item['channelName'])
