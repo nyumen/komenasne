@@ -41,18 +41,23 @@ jkchs = {
     '日テレ' : 4,
     '読売テレビ' : 4, # 関西
     '中京テレビ' : 4, # 中部
+    'ＲＮＣ' : 4, # 高知?
     'テレビ朝日' : 5,
     'ＡＢＣテレビ' : 5, # 関西
     'メ～テレ' : 5, # 中部
+    '瀬戸内海放送' : 5, # 高知?
     'ＴＢＳ' : 6,
     'ＭＢＳ' : 6, # 関西
     'ＣＢＣ' : 6, # 中部
+    'ＲＳＫ' : 6, # 高知?
     'テレビ東京' : 7,
     'テレビ大阪' : 7, # 関西
     'テレビ愛知' : 7, # 中部
+    'ＴＳＣ' : 7, # 高知?テレビせとうち
     'フジテレビ' : 8,
     '関西テレビ' : 8, # 関西
     '東海テレビ' : 8, # 中部
+    'ＯＨＫ' : 8, # 高知?
     'ＭＸ' : 9,
     'テレ玉' : 10,
     'ＴＶＫ' : 11,
@@ -127,10 +132,12 @@ def replace_title(title):
     title = title.replace('\ue195', '[終]')
     title = title.replace('\ue0fe', '[字]')
     title = title.replace('\ue2ca1', 'No1')
+    title = title.replace('\u3000', '　')
     title = title.replace('/', '／')
     title = title.replace('<', '＜')
     title = title.replace('>', '＞')
     title = title.replace(':', '：')
+    title = title.replace('?', '？')
     return title
 
 # vposをdateとdate_usecから再計算する（commenomi対策）
@@ -200,7 +207,7 @@ for ip_addr in nasne_ips:
         playing_content_id = playing_info['client'][0]['content']['id']
         item = get_item(ip_addr, playing_content_id)
         #print(item)
-        #print(item['title'].encode('unicode-escape'))
+        print(item['title'].encode('unicode-escape'))
         title = replace_title(item['title'])
         print(item['id'] + ' ' + title + ' ' + item['channelName'])
         jkid = get_jkid(item['channelName'])
