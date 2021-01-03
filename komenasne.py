@@ -35,6 +35,7 @@ jkchs = {
     'ＢＳ１１' : 211,
     'ＢＳ１２' : 222,
     'ＢＳアニマックス' : 236,
+    'ＡＴ－Ｘ' : 333,
     '総合' : 1,
     'Ｅテレ' : 2,
     '日テレ' : 4,
@@ -77,7 +78,8 @@ jk_names = {
     'jk200' : 'BSスター1',
     'jk211' : 'BS11イレブン',
     'jk222' : 'BS12トゥエルビ',
-    'jk236' : 'BSアニマックス'}
+    'jk236' : 'BSアニマックス',
+    'jk333' : 'AT-X'}
 
 def get_item(ip_addr, playing_content_id):
     get_title_lists = s.get(f'http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0')
@@ -112,14 +114,18 @@ def get_tsurl(jkid, date_time):
 
 # ファイル名に使用できない文字を変換
 def replace_title(title):
+    title = title.replace('\ue180', '[デ]')
+    title = title.replace('\ue183', '[多]')
+    title = title.replace('\ue184', '[解]') 
+    title = title.replace('\ue185', '[SS]') 
+    title = title.replace('\ue18c', '[映]')
+    title = title.replace('\ue18d', '[無]')
+    title = title.replace('\ue190', '[前]') 
+    title = title.replace('\ue191', '[後]') 
     title = title.replace('\ue192', '[再]')
     title = title.replace('\ue193', '[新]')
     title = title.replace('\ue195', '[終]')
     title = title.replace('\ue0fe', '[字]')
-    title = title.replace('\ue183', '[多]')
-    title = title.replace('\ue18c', '[映]')
-    title = title.replace('\ue18d', '[無]')
-    title = title.replace('\ue180', '[デ]')
     title = title.replace('\ue2ca1', 'No1')
     title = title.replace('/', '／')
     title = title.replace('<', '＜')
@@ -127,7 +133,7 @@ def replace_title(title):
     title = title.replace(':', '：')
     return title
 
-# vposをdateとdate_usecから再計算する（commeon対策）
+# vposをdateとdate_usecから再計算する（commenomi対策）
 def rewrite_vpos(start_date_unixtime, xml_line):
     vpos_start = xml_line.find(' vpos="')
     if vpos_start == -1:
@@ -164,14 +170,22 @@ try:
     commeon_path = ini['PLAYER']['commeon_path']
 except KeyError:
     commeon_path = None
-if commeon_path and is_windows:
-    if ini['PLAYER']['commeon_path']:
-        commeon_path = ini['PLAYER']['commeon_path']
-        commeon_path = commeon_path.replace(os.sep, os.sep + os.sep)
-        kakolog_dir = ini['LOG']['kakolog_dir']
-        if '%temp%' in kakolog_dir:
-            kakolog_dir = kakolog_dir.replace('%temp%', os.environ['temp'])
-        kakolog_dir = kakolog_dir.replace(os.sep, os.sep + os.sep)
+
+try:
+    commenomi_path = ini['PLAYER']['commenomi_path']
+except KeyError:
+    commenomi_path = None
+
+if commeon_path:
+    # 以前のiniの互換性維持のためcommeon_pathで上書きする
+    commenomi_path = commeon_path
+
+if commenomi_path and is_windows:
+    commenomi_path = commenomi_path.replace(os.sep, os.sep + os.sep)
+    kakolog_dir = ini['LOG']['kakolog_dir']
+    if '%temp%' in kakolog_dir:
+        kakolog_dir = kakolog_dir.replace('%temp%', os.environ['temp'])
+    kakolog_dir = kakolog_dir.replace(os.sep, os.sep + os.sep)
 
 s = requests.Session();
 headers = {'user-agent':'komenasne'}
@@ -191,8 +205,8 @@ for ip_addr in nasne_ips:
         print(item['id'] + ' ' + title + ' ' + item['channelName'])
         jkid = get_jkid(item['channelName'])
         if not jkid:
-             print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
-             sys.exit(1)
+            print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
+            sys.exit(1)
 
         start_date_time = get_datetime(item['startDateTime'])
         end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
@@ -200,7 +214,7 @@ for ip_addr in nasne_ips:
         start_unixtime = start_date_time.timestamp()
         end_unixtime = end_date_time.timestamp()
 
-        if not is_windows or commeon_path is None:
+        if not is_windows or commenomi_path is None:
             # ブラウザ用のコメント再生処理、Windows・Mac兼用
             ts_time = start_date_time - datetime.timedelta(hours=4)
             try:
@@ -216,20 +230,26 @@ for ip_addr in nasne_ips:
             print(browser_url)
             webbrowser.open(browser_url)
         else:
-            # commeon用のコメント再生処理
+            # commenomi用のコメント再生処理
             kakolog = s.get(f'https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml',headers=headers)
             logfile = kakolog_dir + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + title + '.xml'
             with open(logfile, 'w', encoding="utf-8") as saveFile:
                 start_date_unixtime = start_date_time.timestamp()
+                line_count = 0
                 for xml_line in kakolog.iter_lines():
                     line = rewrite_vpos(start_date_unixtime, xml_line.decode())
                     saveFile.write(line + '\n')
+                    line_count+=1
                     if line == '<error>指定された期間の過去ログは存在しません。</error>':
-                        print('エラー：指定された期間の過去ログは存在しません。')
-                        sys.exit(1)
-            subprocess.Popen([commeon_path, logfile])
+                        line_count = 0
+                        break
+                if line_count <= 3:
+                    print('エラー：指定された期間の過去ログは存在しません。')
+                    sys.exit(1)
+            subprocess.Popen([commenomi_path, logfile])
 
         sys.exit(0)
+        break
 
 print('エラー：再生中のnasneの動画が見つからないため、終了します。')
 sys.exit(1)
