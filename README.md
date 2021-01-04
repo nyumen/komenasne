@@ -1,5 +1,6 @@
 # komenasne について
-<img src="src/umacm.jpg" alt="ウマ娘CM" title="attach:cat" width="768" height="603">  
+![Screenshot](src/umacm.jpg)
+<span style="font-size: 80%; float: right;">＊画像はイメージです</span>  
   
 ### [ダウンロードはこちら](https://github.com/nyumen/komenasne/releases)
 
