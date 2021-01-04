@@ -1,2 +1,2 @@
-python komenasne.py
+komenasne.exe
 pause
