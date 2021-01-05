@@ -1,6 +1,6 @@
 # komenasne について
 <img src="src/umacm.jpg" alt="ウマ娘CM" width="60%" height="60%">  
-<span style="font-size: 80%; float: right;">＊画像はイメージです</span>  
+<span style="font-size: 80%; float: right;">＊画像は「PC TV Plus」と「commenomi」を組み合わせて再生させたイメージです</span>  
   
 ### [ダウンロードはこちら](https://github.com/nyumen/komenasne/releases)
 
