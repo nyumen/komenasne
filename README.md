@@ -71,6 +71,8 @@ nasneのIPはtorneの設定画面で確認できます。
 ## 実行
 torne等で動画を再生した直後に一旦停止してから、komenasne.batをダブルクリックで実行してください。  
 その後、コメント再生画面を全画面にするなどしてから、動画の一旦停止を解除してから続きを再生してください。  
+インストーラーの仕様上、ウィルス対策ソフトWindows Defenderの誤検知に引っかかりやすいため、都度許可するかディレクトリごと対象外としてください。
+参考：[Windows 10のWindows Defenderで特定のファイルやフォルダーをスキャンしないように設定する方法](https://faq.nec-lavie.jp/qasearch/1007/app/servlet/relatedqa?QID=018507)
 
 
 ### commenomiの便利なショートカット
