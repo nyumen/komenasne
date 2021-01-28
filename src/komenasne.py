@@ -21,52 +21,312 @@ pip install beautifulsoup4
 iniの設定
 '''
 
-jkchs = {
-    'ＮＨＫＢＳ１' : 101,
-    'ＮＨＫＢＳプ' : 103,
-    'ＢＳ日テレ' : 141,
-    'ＢＳ朝日' : 151,
-    'ＢＳ－ＴＢＳ' : 161,
-    'ＢＳジャパン' : 171,
-    'ＢＳテレ東' : 171,
-    'ＢＳフジ' : 181,
-    'ＷＯＷＯＷプライム' : 191,
-    'スターチャンネル１' : 200,
-    'ＢＳ１１' : 211,
-    'ＢＳ１２' : 222,
-    'ＢＳアニマックス' : 236,
-    'ＡＴ－Ｘ' : 333,
-    '総合' : 1,
-    'Ｅテレ' : 2,
-    '日テレ' : 4,
-    '読売テレビ' : 4, # 関西
-    '中京テレビ' : 4, # 中部
-    'ＦＢＳ福岡放送' :4, # 福岡
-    'ＲＮＣ' : 4, # 香川・岡山
-    'テレビ朝日' : 5,
-    'ＡＢＣテレビ' : 5, # 関西
-    'メ～テレ' : 5, # 中部
-    'ＫＢＣテレビ' : 5, # 福岡
-    '瀬戸内海放送' : 5, # 香川・岡山
-    'ＴＢＳ' : 6,
-    'ＭＢＳ' : 6, # 関西
-    'ＣＢＣ' : 6, # 中部
-    'ＲＫＢ毎日放送' : 6, # 福岡
-    'ＲＳＫ' : 6, # 香川・岡山
-    'テレビ東京' : 7,
-    'テレビ大阪' : 7, # 関西
-    'テレビ愛知' : 7, # 中部
-    'ＴＶＱ九州放送' : 7, # 福岡
-    'ＴＳＣ' : 7, # 香川・岡山
-    'フジテレビ' : 8,
-    '関西テレビ' : 8, # 関西
-    '東海テレビ' : 8, # 中部
-    'テレビ西日本' : 8, # 福岡
-    'ＯＨＫ' : 8, # 香川・岡山
-    'ＭＸ' : 9,
-    'テレ玉' : 10,
-    'ＴＶＫ' : 11,
-    'チバテレ' : 12}
+jk_chs = {
+    'jk1' : (
+        1024,    # 関東広域: NHK総合・東京
+        10240,   # 北海道(札幌): NHK総合・札幌
+        11264,   # 北海道(函館): NHK総合・函館
+        12288,   # 北海道(旭川): NHK総合・旭川
+        13312,   # 北海道(帯広): NHK総合・帯広
+        14336,   # 北海道(釧路): NHK総合・釧路
+        15360,   # 北海道(北見): NHK総合・北見
+        16384,   # 北海道(室蘭): NHK総合・室蘭
+        17408,   # 宮城: NHK総合・仙台
+        18432,   # 秋田: NHK総合・秋田
+        19456,   # 山形: NHK総合・山形
+        20480,   # 岩手: NHK総合・盛岡
+        21504,   # 福島: NHK総合・福島
+        22528,   # 青森: NHK総合・青森
+        25600,   # 群馬: NHK総合・前橋
+        26624,   # 茨城: NHK総合・水戸
+        28672,   # 栃木: NHK総合・宇都宮
+        30720,   # 長野: NHK総合・長野
+        31744,   # 新潟: NHK総合・新潟
+        32768,   # 山梨: NHK総合・甲府
+        33792,   # 愛知: NHK総合・名古屋
+        34816,   # 石川: NHK総合・金沢
+        35840,   # 静岡: NHK総合・静岡
+        36864,   # 福井: NHK総合・福井
+        37888,   # 富山: NHK総合・富山
+        38912,   # 三重: NHK総合・津
+        39936,   # 岐阜: NHK総合・岐阜
+        40960,   # 大阪: NHK総合・大阪
+        41984,   # 京都: NHK総合・京都
+        43008,   # 兵庫: NHK総合・神戸
+        44032,   # 和歌山: NHK総合・和歌山
+        45056,   # 奈良: NHK総合・奈良
+        46080,   # 滋賀: NHK総合・大津
+        47104,   # 広島: NHK総合・広島
+        48128,   # 岡山: NHK総合・岡山
+        49152,   # 島根: NHK総合・松江
+        50176,   # 鳥取: NHK総合・鳥取
+        51200,   # 山口: NHK総合・山口
+        52224,   # 愛媛: NHK総合・松山
+        53248,   # 香川: NHK総合・高松
+        54272,   # 徳島: NHK総合・徳島
+        55296,   # 高知: NHK総合・高知
+        56320,   # 福岡: NHK総合・福岡
+        56832,   # 福岡: NHK総合・北九州
+        57344,   # 熊本: NHK総合・熊本
+        58368,   # 長崎: NHK総合・長崎
+        59392,   # 鹿児島: NHK総合・鹿児島
+        60416,   # 宮崎: NHK総合・宮崎
+        61440,   # 大分: NHK総合・大分
+        62464,   # 佐賀: NHK総合・佐賀
+        63488,   # 沖縄: NHK総合・沖縄
+    ),
+    'jk2' : (
+        1032,    # 関東広域: NHK-G
+        2056,    # 近畿広域: NHKEテレ大阪
+        3080,    # 中京広域: NHKEテレ名古屋
+        10248,   # 北海道(札幌): NHKEテレ札幌
+        11272,   # 北海道(函館): NHKEテレ函館
+        12296,   # 北海道(旭川): NHKEテレ旭川
+        13320,   # 北海道(帯広): NHKEテレ帯広
+        14344,   # 北海道(釧路): NHKEテレ釧路
+        15368,   # 北海道(北見): NHKEテレ北見
+        16392,   # 北海道(室蘭): NHKEテレ室蘭
+        17416,   # 宮城: NHKEテレ仙台
+        18440,   # 秋田: NHKEテレ秋田
+        19464,   # 山形: NHKEテレ山形
+        20488,   # 岩手: NHKEテレ盛岡
+        21512,   # 福島: NHKEテレ福島
+        22536,   # 青森: NHKEテレ青森
+        30728,   # 長野: NHKEテレ長野
+        31752,   # 新潟: NHKEテレ新潟
+        32776,   # 山梨: NHKEテレ甲府
+        34824,   # 石川: NHKEテレ金沢
+        35848,   # 静岡: NHKEテレ静岡
+        36872,   # 福井: NHKEテレ福井
+        37896,   # 富山: NHKEテレ富山
+        47112,   # 広島: NHKEテレ広島
+        48136,   # 岡山: NHKEテレ岡山
+        49160,   # 島根: NHKEテレ松江
+        50184,   # 鳥取: NHKEテレ鳥取
+        51208,   # 山口: NHKEテレ山口
+        52232,   # 愛媛: NHKEテレ松山
+        53256,   # 香川: NHKEテレ高松
+        54280,   # 徳島: NHKEテレ徳島
+        55304,   # 高知: NHKEテレ高知
+        56328,   # 福岡: NHKEテレ福岡
+        56840,   # 福岡: NHKEテレ北九州
+        57352,   # 熊本: NHKEテレ熊本
+        58376,   # 長崎: NHKEテレ長崎
+        59400,   # 鹿児島: NHKEテレ鹿児島
+        60424,   # 宮崎: NHKEテレ宮崎
+        61448,   # 大分: NHKEテレ大分
+        62472,   # 佐賀: NHKEテレ佐賀
+        63496,   # 沖縄: NHKEテレ沖縄
+    ),
+    'jk4' : (
+        1040,   # 関東広域: 日テレ
+        2088,   # 近畿広域: 読売テレビ
+        3112,   # 中京広域: 中京テレビ
+        4120,   # 北海道域: STV札幌テレビ
+        5136,   # 岡山香川: RNC西日本テレビ
+        6176,   # 島根鳥取: 日本海テレビ
+        10264,  # 北海道(札幌): STV札幌
+        11288,  # 北海道(函館): STV函館
+        12312,  # 北海道(旭川): STV旭川
+        13336,  # 北海道(帯広): STV帯広
+        14360,  # 北海道(釧路): STV釧路
+        15384,  # 北海道(北見): STV北見
+        16408,  # 北海道(室蘭): STV室蘭
+        17440,  # 宮城: ミヤギテレビ
+        18448,  # 秋田: ABS秋田放送
+        19472,  # 山形: YBC山形放送
+        20504,  # 岩手: テレビ岩手
+        21528,  # 福島: 福島中央テレビ
+        22544,  # 青森: RAB青森放送
+        30736,  # 長野: テレビ信州
+        31776,  # 新潟: TeNYテレビ新潟
+        32784,  # 山梨: YBS山梨放送
+        34832,  # 石川: テレビ金沢
+        35872,  # 静岡: だいいちテレビ
+        36880,  # 福井: FBCテレビ
+        37904,  # 富山: KNB北日本放送
+        47128,  # 広島: 広島テレビ
+        51216,  # 山口: KRY山口放送
+        52240,  # 愛媛: 南海放送
+        54288,  # 徳島: 四国放送
+        55312,  # 高知: 高知放送
+        56352,  # 福岡: FBS福岡放送
+        57376,  # 熊本: KKTくまもと県民
+        58408,  # 長崎: NIB長崎国際テレビ
+        59432,  # 鹿児島: KYT鹿児島読売TV
+        61464,  # 大分: TOSテレビ大分
+    ),
+    'jk5' : (
+        1064,   # 関東広域: テレビ朝日
+        2072,   # 近畿広域: ABCテレビ
+        3104,   # 中京広域: メ～テレ
+        4128,   # 北海道域: HTB北海道テレビ
+        5144,   # 岡山香川: KSB瀬戸内海放送
+        10272,  # 北海道(札幌): HTB札幌
+        11296,  # 北海道(函館): HTB函館
+        12320,  # 北海道(旭川): HTB旭川
+        13344,  # 北海道(帯広): HTB帯広
+        14368,  # 北海道(釧路): HTB釧路
+        15392,  # 北海道(北見): HTB北見
+        16416,  # 北海道(室蘭): HTB室蘭
+        17448,  # 宮城: KHB東日本放送
+        18464,  # 秋田: AAB秋田朝日放送
+        19480,  # 山形: YTS山形テレビ
+        20520,  # 岩手: 岩手朝日テレビ
+        21536,  # 福島: KFB福島放送
+        22560,  # 青森: 青森朝日放送
+        30744,  # 長野: abn長野朝日放送
+        31784,  # 新潟: 新潟テレビ21
+        34840,  # 石川: 北陸朝日放送
+        35880,  # 静岡: 静岡朝日テレビ
+        47136,  # 広島: 広島ホームテレビ
+        51232,  # 山口: yab山口朝日
+        52248,  # 愛媛: 愛媛朝日
+        56336,  # 福岡: KBC九州朝日放送
+        57384,  # 熊本: KAB熊本朝日放送
+        58400,  # 長崎: NCC長崎文化放送
+        59424,  # 鹿児島: KKB鹿児島放送
+        61472,  # 大分: OAB大分朝日放送
+        63520,  # 沖縄: QAB琉球朝日放送
+    ),
+    'jk6' : (
+        1048,   # 関東広域: TBS
+        2064,   # 近畿広域: MBS毎日放送
+        3096,   # 中京広域: CBC
+        4112,   # 北海道域: HBC北海道放送
+        5152,   # 岡山香川: RSKテレビ
+        6168,   # 島根鳥取: BSSテレビ
+        10256,  # 北海道(札幌): HBC札幌
+        11280,  # 北海道(函館): HBC函館
+        12304,  # 北海道(旭川): HBC旭川
+        13328,  # 北海道(帯広): HBC帯広
+        14352,  # 北海道(釧路): HBC釧路
+        15376,  # 北海道(北見): HBC北見
+        16400,  # 北海道(室蘭): HBC室蘭
+        17424,  # 宮城: TBCテレビ
+        19488,  # 山形: テレビユー山形
+        20496,  # 岩手: IBCテレビ
+        21544,  # 福島: テレビユー福島
+        22552,  # 青森: ATV青森テレビ
+        30752,  # 長野: SBC信越放送
+        31760,  # 新潟: BSN
+        32792,  # 山梨: UTY
+        34848,  # 石川: MRO
+        35856,  # 静岡: SBS
+        37920,  # 富山: チューリップテレビ
+        47120,  # 広島: RCCテレビ
+        51224,  # 山口: tysテレビ山口
+        52256,  # 愛媛: あいテレビ
+        55320,  # 高知: テレビ高知
+        56344,  # 福岡: RKB毎日放送
+        57360,  # 熊本: RKK熊本放送
+        58384,  # 長崎: NBC長崎放送
+        59408,  # 鹿児島: MBC南日本放送
+        60432,  # 宮崎: MRT宮崎放送
+        61456,  # 大分: OBS大分放送
+        63504,  # 沖縄: RBCテレビ
+    ),
+    'jk7' : (
+        1072,   # 関東広域: テレビ東京
+        4144,   # 北海道域: TVH
+        5160,   # 岡山香川: TSCテレビせとうち
+        10288,  # 北海道(札幌): TVH札幌
+        11312,  # 北海道(函館): TVH函館
+        12336,  # 北海道(旭川): TVH旭川
+        13360,  # 北海道(帯広): TVH帯広
+        14384,  # 北海道(釧路): TVH釧路
+        15408,  # 北海道(北見): TVH北見
+        16432,  # 北海道(室蘭): TVH室蘭
+        33840,  # 愛知: テレビ愛知
+        41008,  # 大阪: テレビ大阪
+        56360,  # 福岡: TVQ九州放送
+    ),
+    'jk8' : (
+        1056,   # 関東広域: フジテレビ
+        2080,   # 近畿広域: 関西テレビ
+        3088,   # 中京広域: 東海テレビ
+        4136,   # 北海道域: UHB
+        5168,   # 岡山香川: OHKテレビ
+        6160,   # 島根鳥取: 山陰中央テレビ
+        10280,  # 北海道(札幌): UHB札幌
+        11304,  # 北海道(函館): UHB函館
+        12328,  # 北海道(旭川): UHB旭川
+        13352,  # 北海道(帯広): UHB帯広
+        14376,  # 北海道(釧路): UHB釧路
+        15400,  # 北海道(北見): UHB北見
+        16424,  # 北海道(室蘭): UHB室蘭
+        17432,  # 宮城: 仙台放送
+        18456,  # 秋田: AKT秋田テレビ
+        19496,  # 山形: さくらんぼテレビ
+        20512,  # 岩手: めんこいテレビ
+        21520,  # 福島: 福島テレビ
+        30760,  # 長野: NBS長野放送
+        31768,  # 新潟: NST
+        34856,  # 石川: 石川テレビ
+        35864,  # 静岡: テレビ静岡
+        36888,  # 福井: 福井テレビ
+        37912,  # 富山: BBT富山テレビ
+        47144,  # 広島: TSS
+        52264,  # 愛媛: テレビ愛媛
+        55328,  # 高知: さんさんテレビ
+        56368,  # 福岡: TNCテレビ西日本
+        57368,  # 熊本: TKUテレビ熊本
+        58392,  # 長崎: KTNテレビ長崎
+        59416,  # 鹿児島: KTS鹿児島テレビ
+        60440,  # 宮崎: UMKテレビ宮崎
+        62480,  # 佐賀: STSサガテレビ
+        63544,  # 沖縄: 沖縄テレビ(OTV)
+    ),
+    'jk9' : (
+        23608,  # 東京: TOKYO MX1
+        23610,  # 東京: TOKYO MX2
+    ),
+    'jk10' : (
+        29752,  # 埼玉: テレ玉
+    ),
+    'jk11' : (
+        24632,  # 神奈川: tvk
+    ),
+    'jk12' : (
+        27704,  # 千葉: チバテレビ
+    ),
+    'jk101' : (
+        101, 102,  # NHK BS1
+    ),
+    'jk103' : (
+        103, 104,  # NHK BSプレミアム
+    ),
+    'jk141' : (
+        141, 142, 143,  # BS日テレ
+    ),
+    'jk151' : (
+        151, 152, 153,  # BS朝日
+    ),
+    'jk161' : (
+        161, 162, 163,  # BS-TBS
+    ),
+    'jk171' : (
+        171, 172, 173,  # BSテレ東
+    ),
+    'jk181' : (
+        181, 182, 183,  # BSフジ
+    ),
+    'jk191' : (
+        191,  # WOWOWプライム
+    ),
+    'jk211' : (
+        211,  # BS11イレブン
+    ),
+    'jk222' : (
+        222,  # BS12トゥエルビ
+    ),
+    'jk236' : (
+        236,  # BSアニマックス
+    ),
+    'jk333' : (
+        333,  # AT-X
+    ),
+}
 
 jk_names = {
     'jk1' : 'NHK総合',
@@ -85,24 +345,24 @@ jk_names = {
     'jk171' : 'BSテレ東',
     'jk181' : 'BSフジ',
     'jk191' : 'WOWOWプライム',
-    'jk200' : 'BSスター1',
     'jk211' : 'BS11イレブン',
     'jk222' : 'BS12トゥエルビ',
     'jk236' : 'BSアニマックス',
-    'jk333' : 'AT-X'}
+    'jk333' : 'AT-X',
+}
 
 def get_item(ip_addr, playing_content_id):
-    get_title_lists = s.get(f'http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0')
+    get_title_lists = session.get(f'http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0')
     title_lists = json.loads(get_title_lists.text)
 
     for item in title_lists['item']:
         if item['id'] == playing_content_id:
             return item
 
-def get_jkid(channel_name):
-    for ch in jkchs:
-        if ch in channel_name:
-            return 'jk' + str(jkchs[ch])
+def get_jkid(service_id):
+    for jkch, sevice_ids in jk_chs.items():
+        if service_id in sevice_ids:
+            return jkch
     return False
 
 def get_datetime(date_time):
@@ -115,10 +375,8 @@ def get_tsurl(jkid, date_time):
     enc_title = ch_name + '【ニコニコ実況】' + date_time.strftime("%Y年%m月%d日")
     print(enc_title)
     load_url = "https://live.nicovideo.jp/search?keyword=" + quote(enc_title) + "&status=onair&sortOrder=recentDesc&providerTypes=channel"
-
-    html = requests.get(load_url,headers=headers)
+    html = session.get(load_url,headers=headers)
     soup = BeautifulSoup(html.content, "html.parser")
-
     param = soup.find(class_="searchPage-ProgramList_TitleLink").get('href')
     return 'https://live2.nicovideo.jp/' + param
 
@@ -152,7 +410,6 @@ def rewrite_vpos(start_date_unixtime, xml_line):
     # xml内のvposの値を取得
     vpos_pos = vpos_start + 7 # len(' vpos="')
     vpos_str_count = xml_line[vpos_pos:].find('"')
-    vpos_num = int(xml_line[vpos_pos:vpos_pos + vpos_str_count])
     # xml内dateの値の取得
     date_start = xml_line.find(' date="')
     date_num = xml_line[date_start + 7:date_start + 17]
@@ -168,12 +425,66 @@ def rewrite_vpos(start_date_unixtime, xml_line):
     new_vpos = math.ceil((comment_unixtime - start_date_unixtime) * 100)
     return xml_line[:vpos_pos] + str(new_vpos) + xml_line[vpos_pos + vpos_str_count:]
 
+def get_content_data(playing_info):
+    playing_content_id = playing_info['client'][0]['content']['id']
+    item = get_item(ip_addr, playing_content_id)
+    #print(item)
+    #print(item['title'].encode('unicode-escape'))
+    title = replace_title(item['title'])
+    print(item['id'] + ' ' + title + ' ' + item['channelName'])
+    jkid = get_jkid(item['serviceId'])
+    if not jkid:
+        print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
+        sys.exit(1)
+    start_date_time = get_datetime(item['startDateTime'])
+    end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
+    return jkid, start_date_time, end_date_time, title
+
+def open_browser(jkid, start_date_time):
+    ts_time = start_date_time - datetime.timedelta(hours=4)
+    try:
+        url = get_tsurl(jkid, ts_time)
+    except:
+        print('エラー：タイムシフト番組が見つかりません。')
+        sys.exit(1)
+    if ts_time.strftime('%Y%m%d') == '20201216':
+        # 新ニコニコ実況の初日は11時開始のため7時間減算
+        ts_time = ts_time - datetime.timedelta(hours=7)
+    shift_time = ts_time.strftime('%H:%M:%S')
+    browser_url = url + '#' + shift_time
+    print(browser_url)
+    webbrowser.open(browser_url)
+
+def open_comment_viewer(jkid, start_date_time, end_date_time, title):
+    print("start:" + str(start_date_time), "end:" + str(end_date_time))
+    start_unixtime = start_date_time.timestamp()
+    end_unixtime = end_date_time.timestamp()
+    kakolog = session.get(f'https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml',headers=headers)
+    logfile = kakolog_dir + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + title + '.xml'
+    with open(logfile, 'w', encoding="utf-8") as saveFile:
+        start_date_unixtime = start_date_time.timestamp()
+        line_count = 0
+        for xml_line in kakolog.iter_lines():
+            line = rewrite_vpos(start_date_unixtime, xml_line.decode())
+            saveFile.write(line + '\n')
+            line_count+=1
+            if line == '<title>503 Service Unavailable</title>':
+                print('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。')
+                sys.exit(1)
+        if line_count <= 3:
+            print('エラー：指定された期間の過去ログは存在しません。')
+            sys.exit(1)
+    subprocess.Popen([commenomi_path, logfile])
+
 
 # init
 ini = configparser.ConfigParser(interpolation=None)
 ini.read('./komenasne.ini', 'UTF-8')
 nase_ini = ini['NASNE']['ip']
 nasne_ips = [x.strip() for x in nase_ini.split(',')]
+
+session = requests.Session();
+headers = {'user-agent':'komenasne'}
 
 is_windows = platform.platform().startswith("Windows")
 
@@ -191,6 +502,7 @@ if commeon_path:
     # 以前のiniの互換性維持のためcommeon_pathで上書きする
     commenomi_path = commeon_path
 
+kakolog_dir = None
 if commenomi_path and is_windows:
     commenomi_path = commenomi_path.replace(os.sep, os.sep + os.sep)
     kakolog_dir = ini['LOG']['kakolog_dir']
@@ -198,67 +510,55 @@ if commenomi_path and is_windows:
         kakolog_dir = kakolog_dir.replace('%temp%', os.environ['temp'])
     kakolog_dir = kakolog_dir.replace(os.sep, os.sep + os.sep)
 
-s = requests.Session();
-headers = {'user-agent':'komenasne'}
+
+args = sys.argv
+# ヘルプ表示
+if len(args) == 2:
+    if '-h' in args[1] or '--help' in args[1]:
+        print('直接取得モード: komenasne.exe [channel] [yyyy-mm-dd hh:mm] [total_minutes] option:[title]')
+        print('例: komenasne.exe "jk4" "2021-01-27 19:00" 60 "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技"')
+        print('チャンネルリスト: ')
+        for k,v in jk_names.items():
+            print(k,v)
+        sys.exit(0)
+
+# 直接取得モード
+if len(args) > 3:
+    jkid = args[1] # 'jk4'
+    start_at = args[2] # "2021-01-27 19:00"
+    total_minutes = int(args[3]) # 60
+    if len(args) > 4:
+        print(len(args))
+        title = args[4] # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
+    else:
+        title = ""
+    start_date_time = datetime.datetime.strptime(start_at, "%Y-%m-%d %H:%M") - datetime.timedelta(seconds = 15)
+    end_date_time = start_date_time + datetime.timedelta(minutes = total_minutes) + datetime.timedelta(seconds = 14)
+    if not is_windows or kakolog_dir is None:
+        # ブラウザ用のコメント再生処理、Windows・Mac兼用
+        open_browser(jkid, start_date_time)
+    else:
+        # commenomi用のコメント再生処理
+        open_comment_viewer(jkid, start_date_time, end_date_time, title)
+    sys.exit(0)
 
 # main
 for ip_addr in nasne_ips:
-
-    get_playing_info = s.get(f'http://{ip_addr}:64210/status/dtcpipClientListGet')
+    try:
+        get_playing_info = session.get(f'http://{ip_addr}:64210/status/dtcpipClientListGet')
+    except:
+        print(f'エラー：{ip_addr} のNASNEが見つかりません。')
+        sys.exit(1)
     playing_info = json.loads(get_playing_info.text)
-
     if 'client' in playing_info:
-        playing_content_id = playing_info['client'][0]['content']['id']
-        item = get_item(ip_addr, playing_content_id)
-        #print(item)
-        #print(item['title'].encode('unicode-escape'))
-        title = replace_title(item['title'])
-        print(item['id'] + ' ' + title + ' ' + item['channelName'])
-        jkid = get_jkid(item['channelName'])
-        if not jkid:
-            print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
-            sys.exit(1)
-
-        start_date_time = get_datetime(item['startDateTime'])
-        end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
-        print("start:" + str(start_date_time), "end:" + str(end_date_time))
-        start_unixtime = start_date_time.timestamp()
-        end_unixtime = end_date_time.timestamp()
-
-        if not is_windows or commenomi_path is None:
+        # 再生中の番組情報を取得する
+        jkid, start_date_time, end_date_time, title = get_content_data(playing_info)
+        if not is_windows or kakolog_dir is None:
             # ブラウザ用のコメント再生処理、Windows・Mac兼用
-            ts_time = start_date_time - datetime.timedelta(hours=4)
-            try:
-                url = get_tsurl(jkid, ts_time)
-            except:
-                print('エラー：タイムシフト番組が見つかりません。')
-                sys.exit(1)
-            if ts_time.strftime('%Y%m%d') == '20201216':
-                # 新ニコニコ実況の初日は11時開始のため7時間減算
-                ts_time = ts_time - datetime.timedelta(hours=7)
-            shift_time = ts_time.strftime('%H:%M:%S')
-            browser_url = url + '#' + shift_time
-            print(browser_url)
-            webbrowser.open(browser_url)
+            open_browser(jkid, start_date_time)
         else:
             # commenomi用のコメント再生処理
-            kakolog = s.get(f'https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml',headers=headers)
-            logfile = kakolog_dir + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + title + '.xml'
-            with open(logfile, 'w', encoding="utf-8") as saveFile:
-                start_date_unixtime = start_date_time.timestamp()
-                line_count = 0
-                for xml_line in kakolog.iter_lines():
-                    line = rewrite_vpos(start_date_unixtime, xml_line.decode())
-                    saveFile.write(line + '\n')
-                    line_count+=1
-                    if line == '<error>指定された期間の過去ログは存在しません。</error>':
-                        line_count = 0
-                        break
-                if line_count <= 3:
-                    print('エラー：指定された期間の過去ログは存在しません。')
-                    sys.exit(1)
-            subprocess.Popen([commenomi_path, logfile])
-
+            open_comment_viewer(jkid, start_date_time, end_date_time, title)
         sys.exit(0)
         break
 
