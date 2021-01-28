@@ -110,7 +110,7 @@ pip install beautifulsoup4
   
 *ヘルプの内容*
 ```
-直接取得モード: komenasne.exe [channel] [yyyy-mm-dd hh:mm] [total_minutes] option:[title]
+直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
 例: komenasne.exe "jk4" "2021-01-27 19:00" 60 "有吉の壁▼サバゲー場で爆笑ネタ！"
 チャンネルリスト:
 jk1 NHK総合

@@ -515,8 +515,8 @@ args = sys.argv
 # ヘルプ表示
 if len(args) == 2:
     if '-h' in args[1] or '--help' in args[1]:
-        print('直接取得モード: komenasne.exe [channel] [yyyy-mm-dd hh:mm] [total_minutes] option:[title]')
-        print('例: komenasne.exe "jk4" "2021-01-27 19:00" 60 "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技"')
+        print('直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]')
+        print('例: komenasne.exe "jk4" "2021-01-27 19:00" 60 "有吉の壁▼サバゲー場で爆笑ネタ！"')
         print('チャンネルリスト: ')
         for k,v in jk_names.items():
             print(k,v)
