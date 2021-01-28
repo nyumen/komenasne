@@ -1,0 +1,2 @@
+python komenasne.py
+pause
