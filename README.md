@@ -53,7 +53,7 @@ Windows環境以外にMac環境でも起動します※後述
   
   
 ## 動作環境
-コメント再生ソフトのcommenomiのダウンロードが必要です。 → commenomi (こめのみ) http://air.fem.jp/commenomi/  
+コメント再生ソフトのcommenomiのダウンロードが必要です。 → [commenomi (こめのみ) ](http://air.fem.jp/commenomi/)  
 動画再生はPS4+torneでもスマホ+torneでもWindows機でPC TV Plusでも構いません。  
 iniの設定により、commenomiの代わりにブラウザでニコ生のタイムシフトから表示することもできます※。    
 Macでもブラウザからニコ生のタイムシフトで表示することが出来ます※。  
