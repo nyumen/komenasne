@@ -7,7 +7,7 @@
   
 ## 概要
 nasneの動画再生と合わせての実況コメントを再生します。  
-*使用イメージはnoteの記事を参照  
+*使用イメージは以下のnoteの記事を参照  
 [komenasneでトルネっぽく実況コメント付きでnasneの動画を再生させる](https://note.com/kamm/n/n8a519502718c)*  
   
 同じネットワーク上のnasneの動画を再生した状態でこのツールを起動することにより、  
@@ -57,12 +57,13 @@ Windows環境以外にMac環境でも起動します※後述
 動画再生はPS4+torneでもスマホ+torneでもWindows機でPC TV Plusでも構いません。  
 iniの設定により、commenomiの代わりにブラウザでニコ生のタイムシフトから表示することもできます※。    
 Macでもブラウザからニコ生のタイムシフトで表示することが出来ます※。  
-※プレミアムアカウント必須、公式チャンネルの3週間以内の動画まで。  
+*※プレミアムアカウント必須、公式チャンネルの3週間以内の動画まで。*  
   
   
 ## セットアップ
 komenasne.iniを開き、[NASNE]セクションの"ip"にカンマ区切りでIPを記入してください。  
 nasneのIPはtorneの設定画面で確認できます。  
+*バージョンの古いメモ帳を使っている場合は、改行されずに表示されます。Windows10を最新版にアップデートするか、テキストエディタで編集してください。*  
   
 次に、commenomi_pathを自分の環境に修正してください。commenomi.exeのプロパティからパスをコピーできます。  
   
@@ -109,10 +110,10 @@ pip install beautifulsoup4
 `komenasne.exe -h`  
   
 *ヘルプの内容*
-```
 直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
-例: komenasne.exe "jk4" "2021-01-27 19:00" 60 "有吉の壁▼サバゲー場で爆笑ネタ！"
-チャンネルリスト:
+例1: komenasne.exe "jk181" "2021-01-25 02:00" 30 "＜アニメギルド＞ゲキドル　＃３"
+例2: komenasne.exe "TBS" "2021-01-23 21:00" 60
+チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11 または以下のjk**を指定
 jk1 NHK総合
 jk2 NHK Eテレ
 jk4 日本テレビ
