@@ -516,22 +516,33 @@ args = sys.argv
 if len(args) == 2:
     if '-h' in args[1] or '--help' in args[1]:
         print('直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]')
-        print('例: komenasne.exe "jk4" "2021-01-27 19:00" 60 "有吉の壁▼サバゲー場で爆笑ネタ！"')
-        print('チャンネルリスト: ')
+        print('例1: komenasne.exe "jk181" "2021-01-25 02:00" 30 "＜アニメギルド＞ゲキドル　＃３"')
+        print('例2: komenasne.exe "TBS" "2021-01-23 21:00" 60')
+        print('チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11 または以下のjk**を指定')
         for k,v in jk_names.items():
             print(k,v)
         sys.exit(0)
 
 # 直接取得モード
 if len(args) > 3:
-    jkid = args[1] # 'jk4'
+    jkid = args[1] # 'jk4' または NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11
+    short_jkids = {"NHK": 1, "Eテレ": 2, "日テレ": 4, "テレ朝": 5, "TBS": 6, "テレ東": 7, "フジ": 8, "MX": 9, "BS11": 211}
+    if jkid in short_jkids:
+        # 主要なチャンネルは短縮名でも指定できるように
+        jkid = "jk" + str(short_jkids[jkid])
+    if jkid not in jk_names:
+        print('エラー：「' + args[1] + '」は定義されていないチャンネルのため、連携できません。')
+        sys.exit(1)
     start_at = args[2] # "2021-01-27 19:00"
     total_minutes = int(args[3]) # 60
+    if total_minutes >= 600:
+        print('エラー：600分以上は指定できません。')
+        sys.exit(1)
     if len(args) > 4:
         print(len(args))
         title = args[4] # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
     else:
-        title = ""
+        title = str(total_minutes)
     start_date_time = datetime.datetime.strptime(start_at, "%Y-%m-%d %H:%M") - datetime.timedelta(seconds = 15)
     end_date_time = start_date_time + datetime.timedelta(minutes = total_minutes) + datetime.timedelta(seconds = 14)
     if not is_windows or kakolog_dir is None:
