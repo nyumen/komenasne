@@ -112,6 +112,7 @@ pip install beautifulsoup4
 `komenasne.exe -h`  
   
 *ヘルプの内容*
+```
 直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
 例1: komenasne.exe "jk181" "2021-01-25 02:00" 30 "＜アニメギルド＞ゲキドル　＃３"
 例2: komenasne.exe "TBS" "2021-01-23 21:00" 60
