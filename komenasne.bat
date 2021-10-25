@@ -1,2 +1,2 @@
 komenasne.exe
-pause
+timeout /t 10
