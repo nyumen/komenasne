@@ -113,7 +113,7 @@ aborn_or_delete = aborn
 limit_ratio = 5
 ```
   
-### commenomiの便利なショートカット
+## commenomiの便利なショートカット
 - SPACE 一時停止/再生
 - A 最初のAのコメントに移動
 - B 最初のBのコメントに移動
