@@ -22,10 +22,17 @@ Windows環境以外にMac環境でも起動します※後述
 - nasneの再生環境は問いません、PS4 / スマホ / PC TV Plusどれでも可。
 - 視聴したい録画番組を再生してまず一時停止、次にkomenasne.batを実行（Windowsの場合）。実況画面が開いたらフルスクリーンにしてnasneの再生を再開。するとnasneの再生に連動して実況が同期します。
 - 関東・中部・関西のチャンネルに対応しています（プログラムが理解できる人は自分でチャンネルを登録することも可能です※後述）
-- 直近30分以内のコメントは取得できません。
+- 過去ログAPIの取得タイミングのため、直近15分以内のコメントは取得できません。また、3時と15時に1～2分ほど再起動が行われるため、過去ログが取得できないタイミングがあります。
   
   
 ## 更新履歴
+
+### 2021-11-27 v1.08
+五輪や鬼滅を快適に見るために色々と改良
+- サブチャンネル対応
+- コメント流量調整対応　※下に使い方の説明
+- しょぼいカレンダーをもとにコメントをシリーズ一括取得　※[使い方](https://docs.google.com/spreadsheets/d/1-yKaSDpg_NK4LM_LbpXG--3n21iLZopRcEW6_sTLE-Q/edit?)- - 動作ログ出力対応　※komenasne.log に出力されます
+usp=sharing
 ### 2021-01-29 v1.07
 - 直接指定モードでチャンネルの指定を"jk4"だけでなく"日テレ"などでも指定できるようにしました
 ### 2021-01-29 v1.06
@@ -79,6 +86,33 @@ torne等で動画を再生した直後に一旦停止してから、komenasne.ba
 参考：[Windows 10のWindows Defenderで特定のファイルやフォルダーをスキャンしないように設定する方法](https://faq.nec-lavie.jp/qasearch/1007/app/servlet/relatedqa?QID=018507)
   
   
+## コメント流量設定
+v1.08から実装されたコメント流量調整機能の説明です。
+komenasne.iniに[COMMENT]という項目が追加されています。コメント流量が指定した値を超えると、オリジナルのxmlファイルとともに間引きされたlimitファイルが作成されます。
+例：
+```
+TBSテレビ_20211121_205946_54_日曜劇場「日本沈没－希望のひと－」第６話「抗えない日本沈没」[字][デ].xml
+↓↓↓
+TBSテレビ_20211121_205946_54_日曜劇場「日本沈没－希望のひと－」第６話「抗えない日本沈没」[字][デ]_limit.xml
+```
+設定値について
+"comment_limit": noneを指定すると流量調整機能は動作しません。middleにするとおおよそコメントが重ならない程度のコメント量となり、lowの場合は字幕が読める程度にまで減ります。
+"aborn_or_delete": 間引きされたコメントの行を削除するか非表示コメントに置き換えるかが選択できます。勢いグラフを使用しない方は、commenomiの動作が軽くなるdeleteを指定してください。
+"limit_ratio" 間引きされたコメントが少ない場合、limitファイルを作成しない条件を指定します。例として、5を指定した場合、本来のコメント数に対して間引きされたコメント数が5%未満であればlimitファイルを作成しません。
+＝＝＝
+ちなみに歌詞ニキさんのコメントについては必ず表示されるようになっています。
+
+komenasne.iniのデフォルト設定値(推奨値)
+```[COMMENT]
+# コメント流量設定 none, low, middle, high
+comment_limit = middle
+# 間引きしたコメントの出力設定
+# aborn: 透明あぼーん(勢いグラフはそのまま、ファイルサイズ大), delete: 削除(勢いグラフ不正確、ファイルサイズ小)
+aborn_or_delete = aborn
+# 間引きしたコメント数がこの数値の%以下の場合、limitファイルを作成しない(0-99で指定、0で必ずlimitファイルを作成)
+limit_ratio = 5
+```
+  
 ### commenomiの便利なショートカット
 - SPACE 一時停止/再生
 - A 最初のAのコメントに移動
@@ -107,13 +141,11 @@ pip install beautifulsoup4
   
   
 ## 高度な使い方
-再生中のNASNEの情報を参照せず、チャンネルと日時を指定してコメントログを取得する機能です。  
-以下のコマンドでヘルプが表示されます。  
-`komenasne.exe -h`  
-  
-*ヘルプの内容*
+
+【直接取得モード】
+再生中のNASNEの情報を参照せず、チャンネルと日時を指定してコメントログを取得する機能です。
 ```
-直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
+komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
 例1: komenasne.exe "jk181" "2021-01-25 02:00" 30 "＜アニメギルド＞ゲキドル　＃３"
 例2: komenasne.exe "TBS" "2021-01-23 21:00" 60
 チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11 または以下のjk**を指定
@@ -138,7 +170,23 @@ jk222 BS12トゥエルビ
 jk236 BSアニマックス
 jk333 AT-X
 ```
-  
+
+【サイレントモード】
+mode_silentをつけるとkommenomiが起動せず、xmlファイルのみが作成されます。
+```
+komenasne.exe mode_silent
+```
+
+【コメント流量調整指定】
+コメント流量調整を指定します。iniファイルの指定より優先されます。
+```
+komenasne.exe mode_limit_none
+komenasne.exe mode_limit_low
+komenasne.exe mode_limit_middle
+komenasne.exe mode_limit_high
+```
+
+
   
 ## スペシャルサンクス
 - commenomi (こめのみ) http://air.fem.jp/commenomi/
