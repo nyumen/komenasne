@@ -2,17 +2,19 @@
 import requests
 import json
 import datetime
+from dateutil.parser import parse
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 import re
+import gc
 import webbrowser
 import subprocess
 import configparser
 import platform
 import os
 import sys
-import tempfile
 import math
+from logging import getLogger, StreamHandler, Formatter, FileHandler, INFO
 
 '''
 # 必要
@@ -23,7 +25,7 @@ iniの設定
 
 jk_chs = {
     'jk1' : (
-        1024,    # 関東広域: NHK総合・東京
+        1024, 1025, # 関東広域: NHK総合・東京
         10240,   # 北海道(札幌): NHK総合・札幌
         11264,   # 北海道(函館): NHK総合・函館
         12288,   # 北海道(旭川): NHK総合・旭川
@@ -76,7 +78,7 @@ jk_chs = {
         63488,   # 沖縄: NHK総合・沖縄
     ),
     'jk2' : (
-        1032,    # 関東広域: NHK-G
+        1032, 1033, 1034, # 関東広域: NHK-Eテレ
         2056,    # 近畿広域: NHKEテレ大阪
         3080,    # 中京広域: NHKEテレ名古屋
         10248,   # 北海道(札幌): NHKEテレ札幌
@@ -119,7 +121,7 @@ jk_chs = {
         63496,   # 沖縄: NHKEテレ沖縄
     ),
     'jk4' : (
-        1040,   # 関東広域: 日テレ
+        1040, 1041, # 関東広域: 日テレ
         2088,   # 近畿広域: 読売テレビ
         3112,   # 中京広域: 中京テレビ
         4120,   # 北海道域: STV札幌テレビ
@@ -157,7 +159,7 @@ jk_chs = {
         61464,  # 大分: TOSテレビ大分
     ),
     'jk5' : (
-        1064,   # 関東広域: テレビ朝日
+        1064, 1065, 1066, # 関東広域: テレビ朝日
         2072,   # 近畿広域: ABCテレビ
         3104,   # 中京広域: メ～テレ
         4128,   # 北海道域: HTB北海道テレビ
@@ -190,7 +192,7 @@ jk_chs = {
         63520,  # 沖縄: QAB琉球朝日放送
     ),
     'jk6' : (
-        1048,   # 関東広域: TBS
+        1048, 1049, # 関東広域: TBS
         2064,   # 近畿広域: MBS毎日放送
         3096,   # 中京広域: CBC
         4112,   # 北海道域: HBC北海道放送
@@ -227,7 +229,7 @@ jk_chs = {
         63504,  # 沖縄: RBCテレビ
     ),
     'jk7' : (
-        1072,   # 関東広域: テレビ東京
+        1072, 1073, 1074, # 関東広域: テレビ東京
         4144,   # 北海道域: TVH
         5160,   # 岡山香川: TSCテレビせとうち
         10288,  # 北海道(札幌): TVH札幌
@@ -242,7 +244,7 @@ jk_chs = {
         56360,  # 福岡: TVQ九州放送
     ),
     'jk8' : (
-        1056,   # 関東広域: フジテレビ
+        1056, 1057, 1058, # 関東広域: フジテレビ
         2080,   # 近畿広域: 関西テレビ
         3088,   # 中京広域: 東海テレビ
         4136,   # 北海道域: UHB
@@ -279,10 +281,11 @@ jk_chs = {
     ),
     'jk9' : (
         23608,  # 東京: TOKYO MX1
-        23610,  # 東京: TOKYO MX2
+        23609,  # 東京: TOKYO MX2
+        23615,  # 東京: TOKYO MX臨時
     ),
     'jk10' : (
-        29752,  # 埼玉: テレ玉
+        29752, 29753, 29754, # 埼玉: テレ玉
     ),
     'jk11' : (
         24632,  # 神奈川: tvk
@@ -351,6 +354,21 @@ jk_names = {
     'jk333' : 'AT-X',
 }
 
+def get_logger():
+    logger = getLogger(__name__)
+    logger.setLevel(INFO)
+    sh = StreamHandler()
+    sh.setLevel(INFO)
+    logger.addHandler(sh)
+
+    fh = FileHandler("komenasne.log")
+    fh.setLevel(INFO)
+    fh_formatter = Formatter('%(asctime)s - %(message)s')
+    fh.setFormatter(fh_formatter)
+    logger.addHandler(fh)
+
+    return logger
+
 def get_item(ip_addr, playing_content_id):
     get_title_lists = session.get(f'http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0')
     title_lists = json.loads(get_title_lists.text)
@@ -373,7 +391,7 @@ def get_tsurl(jkid, date_time):
     # "TBSテレビ【ニコニコ実況】2020年12月26日"等
     ch_name = jk_names[jkid]
     enc_title = ch_name + '【ニコニコ実況】' + date_time.strftime("%Y年%m月%d日")
-    print(enc_title)
+    logger.info("番組名:" + enc_title)
     load_url = "https://live.nicovideo.jp/search?keyword=" + quote(enc_title) + "&status=onair&sortOrder=recentDesc&providerTypes=channel"
     html = session.get(load_url,headers=headers)
     soup = BeautifulSoup(html.content, "html.parser")
@@ -431,21 +449,22 @@ def get_content_data(playing_info):
     #print(item)
     #print(item['title'].encode('unicode-escape'))
     title = replace_title(item['title'])
-    print(item['id'] + ' ' + title + ' ' + item['channelName'])
     jkid = get_jkid(item['serviceId'])
     if not jkid:
-        print('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
+        logger.info('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
         sys.exit(1)
     start_date_time = get_datetime(item['startDateTime'])
     end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
-    return jkid, start_date_time, end_date_time, title
+    total_minutes = round(int(item['duration']) / 60)
+    logger.info("ファイル名:" + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + str(total_minutes) + '_' + title + '.xml')
+    return jkid, start_date_time, end_date_time, total_minutes, title
 
 def open_browser(jkid, start_date_time):
     ts_time = start_date_time - datetime.timedelta(hours=4)
     try:
         url = get_tsurl(jkid, ts_time)
     except:
-        print('エラー：タイムシフト番組が見つかりません。')
+        logger.info('エラー：タイムシフト番組が見つかりません。')
         sys.exit(1)
     if ts_time.strftime('%Y%m%d') == '20201216':
         # 新ニコニコ実況の初日は11時開始のため7時間減算
@@ -455,29 +474,89 @@ def open_browser(jkid, start_date_time):
     print(browser_url)
     webbrowser.open(browser_url)
 
-def open_comment_viewer(jkid, start_date_time, end_date_time, title):
-    print("start:" + str(start_date_time), "end:" + str(end_date_time))
+def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title):
     start_unixtime = start_date_time.timestamp()
     end_unixtime = end_date_time.timestamp()
     kakolog = session.get(f'https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml',headers=headers)
-    logfile = kakolog_dir + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + title + '.xml'
+    logfile = kakolog_dir + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + str(total_minutes) + '_' + title + '.xml'
+    logfile_limit = kakolog_dir + jk_names[jkid] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + str(total_minutes)  + '_' + title + '_limit.xml'
+    line_count = 0
     with open(logfile, 'w', encoding="utf-8") as saveFile:
         start_date_unixtime = start_date_time.timestamp()
-        line_count = 0
+        save_data_lines = []
         for xml_line in kakolog.iter_lines():
             line = rewrite_vpos(start_date_unixtime, xml_line.decode())
             saveFile.write(line + '\n')
-            line_count+=1
+            save_data_lines.append(line)
+            if '</chat>' in line:
+                line_count+=1
             if line == '<title>503 Service Unavailable</title>':
-                print('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。')
+                logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。')
                 sys.exit(1)
-        if line_count <= 3:
-            print('エラー：指定された期間の過去ログは存在しません。')
+        if line_count < 1:
+            logger.info('エラー：指定された期間の過去ログは存在しません。')
             sys.exit(1)
-    subprocess.Popen([commenomi_path, logfile])
 
+    # メモリ解放
+    del kakolog
+    gc.collect()
+
+    if rate_per_seconde > 0:
+        base_date_key = ""
+        date_key_count = 0
+        aborn_count = 0
+        key_pattern = re.compile(r'date=("\d+")') 
+        aborn_pattern = re.compile(r'(<chat [^>]+>).+(</chat>)')
+        limit_line_data = []
+        for line in save_data_lines:
+            key = key_pattern.search(line)
+            aborn_text = ""
+            if key is not None:
+                date_key = key.group(1)
+                # コメント流量が指定されているときは_limitファイルを作成する
+                if base_date_key != date_key:
+                    base_date_key = date_key
+                    date_key_count = 0
+                else:
+                    aborn_text = aborn_pattern.sub(r'\1{}\2'.format('\u202A'), line)
+                    if len(line) - len(aborn_text) < 6:
+                        date_key_count+=.5
+                    else:
+                        date_key_count+=1
+            if date_key_count < rate_per_seconde or aborn_text == "" or '</chat>' not in line or ' shita' in line:
+                # 秒間rate値を超えてない、date=が含まれていない、</chat>が含まれていない、"shita"が含まれている場合（歌詞ニキ対応）はそのままファイル出力
+                ####saveFileLimit.write(line + '\n')
+                limit_line_data.append(line)
+            else:
+                # comment_aborn_flgがTrueの場合、透明あぼーんで書き込む
+                if comment_aborn_flg:
+                    limit_line_data.append(aborn_text)
+                    #####saveFileLimit.write(aborn_pattern.sub(r'\1{}\2'.format('\u202A'), line) + '\n')
+                aborn_count+=1
+        if (aborn_count / line_count * 100) <= limit_ratio:
+            # 間引きするコメントがlimit_ratioの以下場合（しじみチャンス対策）、limitファイルを作成しない
+            logfile_limit = logfile
+        else:
+            with open(logfile_limit, 'w', encoding="utf-8") as saveFileLimit:
+                for line in limit_line_data:
+                    saveFileLimit.write(line + '\n')
+    total_sec = int(end_unixtime - start_unixtime)
+    logger.info("再生時間:{}時{}分{}秒 コメント数:{}".format(total_sec // 3600, (total_sec % 3600) // 60, total_sec % 60, line_count))
+    if rate_per_seconde > 0:
+        limit_name = {3:'間引き[高]', 4:'間引き[中]', 5:'間引き[低]'}
+        logger.info("流量設定:{} 間引きコメント数:{} 間引き率:{}%".format(limit_name[rate_per_seconde], aborn_count, round(aborn_count / line_count * 100, 1)))
+        if (aborn_count / line_count * 100) <= limit_ratio:
+            logger.info("間引き率が" + str(limit_ratio) + "%以下のため、limitファイルの作成をスキップしました。")
+    # mode_silentが0の時はコメントビュアーを起動
+    if mode_silent != 1:
+        if rate_per_seconde > 0:
+            subprocess.Popen([commenomi_path, logfile_limit])
+        else:
+            subprocess.Popen([commenomi_path, logfile])
 
 # init
+logger = get_logger()
+logger.info("starting..")
 ini = configparser.ConfigParser(interpolation=None)
 ini.read('./komenasne.ini', 'UTF-8')
 nase_ini = ini['NASNE']['ip']
@@ -516,41 +595,98 @@ args = sys.argv
 if len(args) == 2:
     if '-h' in args[1] or '--help' in args[1]:
         print('直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]')
-        print('例1: komenasne.exe "jk181" "2021-01-25 02:00" 30 "＜アニメギルド＞ゲキドル　＃３"')
-        print('例2: komenasne.exe "TBS" "2021-01-23 21:00" 60')
-        print('チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11 または以下のjk**を指定')
+        print('例1: komenasne.exe "jk181" "2021-01-24 26:00" 30')
+        print('例2: komenasne.exe "BSフジ" "2021/1/24 26:00" 30 "＜アニメギルド＞ゲキドル　＃３"')
+        print('チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定')
         for k,v in jk_names.items():
             print(k,v)
         sys.exit(0)
 
+# サイレントモード判断（コメントビュアーは起動せずxmlファイルを作成するだけ）
+if "mode_silent" in args:
+    mode_silent = 1
+else:
+    mode_silent = 0
+
+# mode_limitが指定されているときはコメント流量を調整する
+try:
+    comment_limit = ini['COMMENT']['comment_limit']
+except KeyError:
+    comment_limit = None
+
+# iniより引数の設定を優先
+if "mode_limit_none" in args:
+    rate_per_seconde = 0 # 流量調整なし
+elif "mode_limit_high" in args:
+    rate_per_seconde = 3 # 間引き[高]
+elif "mode_limit_middle" in args:
+    rate_per_seconde = 4 # 間引き[中]
+elif "mode_limit_low" in args:
+    rate_per_seconde = 5 # 間引き[低]
+elif 'high' == comment_limit:
+    rate_per_seconde = 3
+elif 'middle' == comment_limit:
+    rate_per_seconde = 4
+elif 'low' == comment_limit:
+    rate_per_seconde = 5
+else:
+    rate_per_seconde = 0
+
+# mode_limitが指定されているときはコメント流量を制限する
+try:
+    comment_aborn_or_delete = ini['COMMENT']['aborn_or_delete']
+except KeyError:
+    comment_aborn_or_delete = None
+if 'aborn' == comment_aborn_or_delete:
+    comment_aborn_flg = True
+else:
+    comment_aborn_flg = False
+
+# 間引きしたコメントの割合がこの数値以下だった場合、limitファイルを作成しない(0-99)
+try:
+    limit_ratio = int(ini['COMMENT']['limit_ratio'])
+except KeyError:
+    limit_ratio = 0
+
 # 直接取得モード
 if len(args) > 3:
     jkid = args[1] # 'jk4' または NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11
-    short_jkids = {"NHK": 1, "Eテレ": 2, "日テレ": 4, "テレ朝": 5, "TBS": 6, "テレ東": 7, "フジ": 8, "MX": 9, "BS11": 211}
+    # しょぼいカレンダーのチャンネル名も対応
+    short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4,
+         "テレ朝": 5, "テレビ朝日": 5,"TBS": 6, "テレ東": 7, "テレ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
+         "BS日テレ": 141, "BS朝日": 151, "BS-TBS": 161, "BSテレ東": 171, "BSフジ": 181, "BS11": 211, "BS11イレブン": 211, "BS12トゥエルビ": 222}
     if jkid in short_jkids:
         # 主要なチャンネルは短縮名でも指定できるように
         jkid = "jk" + str(short_jkids[jkid])
     if jkid not in jk_names:
-        print('エラー：「' + args[1] + '」は定義されていないチャンネルのため、連携できません。')
+        logger.info('エラー：「' + args[1] + '」は定義されていないチャンネルのため、連携できません。')
         sys.exit(1)
     start_at = args[2] # "2021-01-27 19:00"
+    # しょぼいカレンダーの25:00等表記の対応
+    start_date, start_time = start_at.split(" ")
+    start_hour, start_min = start_time.split(":")
+    if int(start_hour) >= 24:
+        start_hour = int(start_hour) - 24
+        plus_days = 1
+    else:
+        plus_days = 0
+    start_at = start_date + " " + str(start_hour) + ":" + start_min
     total_minutes = int(args[3]) # 60
     if total_minutes >= 600:
-        print('エラー：600分以上は指定できません。')
+        logger.info('エラー：600分以上は指定できません。')
         sys.exit(1)
     if len(args) > 4:
-        print(len(args))
         title = args[4] # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
     else:
         title = str(total_minutes)
-    start_date_time = datetime.datetime.strptime(start_at, "%Y-%m-%d %H:%M") - datetime.timedelta(seconds = 15)
+    start_date_time = parse(start_at) - datetime.timedelta(seconds = 15) + datetime.timedelta(days = plus_days)
     end_date_time = start_date_time + datetime.timedelta(minutes = total_minutes) + datetime.timedelta(seconds = 14)
     if not is_windows or kakolog_dir is None:
         # ブラウザ用のコメント再生処理、Windows・Mac兼用
         open_browser(jkid, start_date_time)
     else:
         # commenomi用のコメント再生処理
-        open_comment_viewer(jkid, start_date_time, end_date_time, title)
+        open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
     sys.exit(0)
 
 # main
@@ -558,22 +694,22 @@ for ip_addr in nasne_ips:
     try:
         get_playing_info = session.get(f'http://{ip_addr}:64210/status/dtcpipClientListGet')
     except:
-        print(f'エラー：{ip_addr} のNASNEが見つかりません。')
+        logger.info(f'エラー：{ip_addr} のNASNEが見つかりません。')
         sys.exit(1)
     playing_info = json.loads(get_playing_info.text)
     if 'client' in playing_info:
         # 再生中の番組情報を取得する
-        jkid, start_date_time, end_date_time, title = get_content_data(playing_info)
+        jkid, start_date_time, end_date_time, total_minutes, title = get_content_data(playing_info)
         if not is_windows or kakolog_dir is None:
             # ブラウザ用のコメント再生処理、Windows・Mac兼用
             open_browser(jkid, start_date_time)
         else:
             # commenomi用のコメント再生処理
-            open_comment_viewer(jkid, start_date_time, end_date_time, title)
+            open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
         sys.exit(0)
         break
 
-print('エラー：再生中のnasneの動画が見つからないため、終了します。')
+logger.info('エラー：再生中のnasneの動画が見つからないため、終了します。')
 sys.exit(1)
 
 
