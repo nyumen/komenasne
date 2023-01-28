@@ -433,6 +433,9 @@ def replace_title(title):
     title = title.replace('\ue0fd', '[手]')
     title = title.replace('\ue0fe', '[字]')
     title = title.replace('\ue2ca', 'No')
+    title = title.replace('\ue2f0', '！？')
+    title = title.replace('\u203c', '！！')
+    title = title.replace('\u3000', ' ')
     title = title.replace('\u1f6f0', '') #衛星
     title = title.replace('/', '／')
     title = title.replace('<', '＜')
