@@ -16,6 +16,7 @@ import time
 import math
 from logging import getLogger, StreamHandler, Formatter, FileHandler, INFO
 import tweepy
+import argparse
 
 '''
 # 必要
@@ -703,6 +704,7 @@ headers = {'user-agent':'komenasne'}
 
 is_windows = platform.platform().startswith("Windows")
 
+# iniファイル読み込み
 try:
     commeon_path = ini['PLAYER']['commeon_path']
 except KeyError:
@@ -748,32 +750,48 @@ try:
 except KeyError:
     access_token_secret = ""
 
-args = sys.argv
 # ヘルプ表示
-if len(args) == 2:
-    if '-h' in args[1] or '--help' in args[1]:
-        print('直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]')
-        print('例1: komenasne.exe "jk181" "2021-01-24 26:00" 30')
-        print('例2: komenasne.exe "BSフジ" "2021/1/24 26:00" 30 "＜アニメギルド＞ゲキドル　＃３"')
-        print('サイレントモード: komenasne.exe mode_silent')
-        print('チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定')
-        for k,v in jk_names.items():
-            print(k,v)
-        sys.exit(0)
+usage_message = '''直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
+例1: komenasne.exe "jk181" "2021-01-24 26:00" 30
+例2: komenasne.exe "BSフジ" "2021/1/24 26:00" 30 "＜アニメギルド＞ゲキドル　＃３"
+例3: komenasne.exe "BSフジ" 20210125_015945 30 "＜アニメギルド＞ゲキドル　＃３"
+
+サイレントモード: komenasne.exe --mode_silent
+常駐モード: komenasne.exe --mode_monitoring
+再生時間変更で再取得: komenasne.exe --fixmin 30 "TOKYO MX_20230126_012945_13_痛いのは嫌なので防御力に極振りしたいと思います。２ ＃３.xml"
+
+チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定
+'''
+for k,v in jk_names.items():
+    usage_message += f"{k} {v}\n"
+
+# パーサーのインスタンスを作成
+parser = argparse.ArgumentParser(usage=usage_message)
+
+parser.add_argument('channel', nargs="?", default="None")
+parser.add_argument('date_time', nargs="?", default=0)
+parser.add_argument('total_minutes', type=int, nargs="?", default=0)
+parser.add_argument('title', nargs="?", default="")
+parser.add_argument('-limit')
+parser.add_argument('--mode_silent', action='store_true')
+parser.add_argument('--mode_monitoring', action='store_true')
+parser.add_argument('--fixmin', nargs=2)
+
+# 引数を解析する
+args = parser.parse_args()
 
 # サイレントモード判断（コメントビュアーは起動せずxmlファイルを作成するだけ）
-if "mode_silent" in args:
+if args.mode_silent:
     mode_silent = True
 else:
     mode_silent = False
 
 # 常駐監視モード判断（プログラムを終了せず定期実行する）
-if "mode_monitoring" in args:
+if args.mode_monitoring:
     mode_monitoring = True
     mode_silent = True
 else:
     mode_monitoring = False
-
 
 # mode_limitが指定されているときはコメント流量を調整する
 try:
@@ -782,13 +800,13 @@ except KeyError:
     comment_limit = None
 
 # iniより引数の設定を優先
-if "mode_limit_none" in args:
+if "none" == args.limit:
     rate_per_seconde = 0 # 流量調整なし
-elif "mode_limit_high" in args:
+elif "high" == args.limit:
     rate_per_seconde = 3 # 間引き[高]
-elif "mode_limit_middle" in args:
+elif "middle" == args.limit:
     rate_per_seconde = 4 # 間引き[中]
-elif "mode_limit_low" in args:
+elif "low" == args.limit:
     rate_per_seconde = 5 # 間引き[低]
 elif 'high' == comment_limit:
     rate_per_seconde = 3
@@ -816,8 +834,22 @@ except KeyError:
     limit_ratio = 0
 
 # 直接取得モード
-if len(args) > 3:
-    jkid = args[1] # 'jk4' または NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11
+
+#jkid = args.fixmin(0)
+#print(args.fixmin[0])
+#sys.exit(1)
+
+if args.channel != "None" or args.fixmin:
+    if args.fixmin:
+        # NHK総合_20230128_201445_35_有吉のお金発見 突撃！カネオくん「スター動物がいっぱい！動物園のお金の秘密」[字].xml
+        # これを要素に分解
+        m = re.search(r'^(.+)_(\d{8}_\d{6})_\d+_(.+)\.xml', args.fixmin[1])
+        jkid = m.group(1)
+        str_date_time = m.group(2)
+        title = m.group(3)
+        total_minutes = int(args.fixmin[0])
+    if jkid is None:
+        jkid = args.channel # 'jk4' または NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11
     # しょぼいカレンダーのチャンネル名も対応
     short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4,
          "テレ朝": 5, "テレビ朝日": 5,"TBS": 6, "テレ東": 7, "テレ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
@@ -826,28 +858,36 @@ if len(args) > 3:
         # 主要なチャンネルは短縮名でも指定できるように
         jkid = "jk" + str(short_jkids[jkid])
     if jkid not in jk_names:
-        logger.info('エラー：「' + args[1] + '」は定義されていないチャンネルのため、連携できません。')
+        logger.info('エラー：「' + args.channel + '」は定義されていないチャンネルのため、連携できません。')
         sys.exit(1)
-    start_at = args[2] # "2021-01-27 19:00"
-    # しょぼいカレンダーの25:00等表記の対応
-    start_date, start_time = start_at.split(" ")
-    start_hour, start_min = start_time.split(":")
-    if int(start_hour) >= 24:
-        start_hour = int(start_hour) - 24
-        plus_days = 1
+
+    if str_date_time is None:
+        str_date_time = args.date_time
+    m = re.search(r'^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$', str_date_time)
+    if m:
+        start_at = "{}-{}-{} {}:{}:{}".format(m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6)) # "2021-01-27 19:00"
+        start_date_time = parse(start_at)
     else:
-        plus_days = 0
-    start_at = start_date + " " + str(start_hour) + ":" + start_min
-    total_minutes = int(args[3]) # 60
+        start_at = args.date_time # "2021-01-27 19:00"
+        start_date, start_time = start_at.split(" ")
+        start_hour, start_min = start_time.split(":")
+        # しょぼいカレンダーの25:00等表記の対応
+        if int(start_hour) >= 24:
+            start_hour = int(start_hour) - 24
+            plus_days = 1
+        else:
+            plus_days = 0
+        start_at = start_date + " " + str(start_hour) + ":" + start_min
+        start_date_time = parse(start_at) - datetime.timedelta(seconds = 15) + datetime.timedelta(days = plus_days)
+
+    if total_minutes is None:
+        total_minutes = int(args.total_minutes) # 60
     if total_minutes >= 600:
         logger.info('エラー：600分以上は指定できません。')
         sys.exit(1)
-    if len(args) > 4:
-        title = args[4] # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
-    else:
-        title = str(total_minutes)
-    start_date_time = parse(start_at) - datetime.timedelta(seconds = 15) + datetime.timedelta(days = plus_days)
     end_date_time = start_date_time + datetime.timedelta(minutes = total_minutes) + datetime.timedelta(seconds = 14)
+    if title is None:
+        title = args.title # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
     # commenomi用のコメント再生処理
     open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
     sys.exit(0)
