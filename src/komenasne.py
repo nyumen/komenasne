@@ -480,6 +480,10 @@ def get_content_data(ip_addr, playing_content_id):
     start_date_time = get_datetime(item['startDateTime'])
     end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
     total_minutes = round(int(item['duration']) / 60)
+    # 引数指定で再生中動画の再生時間を上書き
+    if args.overwritemin:
+        end_date_time = start_date_time + datetime.timedelta(seconds=(args.overwritemin * 60) + 14)
+        total_minutes = args.overwritemin
     return jkid, start_date_time, end_date_time, total_minutes, title
 
 def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit):
@@ -583,7 +587,7 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
     else:
         min_count = "0"
 
-    tweet_template_file = "tweet_template.txt"
+    tweet_template_file = os.path.dirname(os.path.abspath(sys.argv[0])) + '/tweet_template.txt'
     if not os.path.exists(tweet_template_file):
         logger.info('エラー：ツイートテンプレートファイルが見つかりません。' + tweet_template_file)
         return False
@@ -631,17 +635,20 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
         ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit)
         if not ret:
             return False
+    else:
+        print('ファイル名:' + base_file + '.xml')
 
     # mode_silentが0の時はコメントビュアーを起動
     if not mode_silent:
         # commenomiが存在するかどうかをチェック
         if not os.path.exists(commenomi_path):
             logger.info('エラー：commenomiが見つからないため、終了します。' + commenomi_path)
-            return False
+            sys.exit(1)
         if rate_per_seconde > 0 and os.path.exists(logfile_limit):
             subprocess.Popen([commenomi_path, logfile_limit])
         else:
             subprocess.Popen([commenomi_path, logfile])
+    return True
 
 def open_jkcommentviewer(service_id):
     if mode_silent or jkcommentviewer_path is None:
@@ -696,7 +703,7 @@ def playing_nasnes():
 logger = get_logger()
 logger.info("starting..")
 ini = configparser.ConfigParser(interpolation=None)
-ini.read('./komenasne.ini', 'UTF-8')
+ini.read(os.path.dirname(os.path.abspath(sys.argv[0])) + '/komenasne.ini', 'UTF-8')
 nase_ini = ini['NASNE']['ip']
 nasne_ips = [x.strip() for x in nase_ini.split(',')]
 
@@ -771,11 +778,12 @@ parser = argparse.ArgumentParser(usage=usage_message)
 parser.add_argument('channel', nargs="?", default="None")
 parser.add_argument('date_time', nargs="?", default=0)
 parser.add_argument('total_minutes', type=int, nargs="?", default=0)
-parser.add_argument('title', nargs="?", default="")
-parser.add_argument('-limit')
+parser.add_argument('title', nargs="?", default="タイトル不明")
+parser.add_argument('-limit', choices=['none', 'high', 'middle', 'low'])
 parser.add_argument('--mode_silent', action='store_true')
 parser.add_argument('--mode_monitoring', action='store_true')
 parser.add_argument('--fixmin', nargs=2)
+parser.add_argument('--overwritemin', type=int) # 再生中動画の再生時間を上書き.分を指定する
 
 # 引数を解析する
 args = parser.parse_args()
@@ -834,11 +842,6 @@ except KeyError:
     limit_ratio = 0
 
 # 直接取得モード
-
-#jkid = args.fixmin(0)
-#print(args.fixmin[0])
-#sys.exit(1)
-
 if args.channel != "None" or args.fixmin:
     if args.fixmin:
         # NHK総合_20230128_201445_35_有吉のお金発見 突撃！カネオくん「スター動物がいっぱい！動物園のお金の秘密」[字].xml
@@ -848,11 +851,14 @@ if args.channel != "None" or args.fixmin:
         str_date_time = m.group(2)
         title = m.group(3)
         total_minutes = int(args.fixmin[0])
-    if jkid is None:
+    else:
         jkid = args.channel # 'jk4' または NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11
+        str_date_time = args.date_time
+        total_minutes = args.total_minutes # 60
+        title = args.title # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
     # しょぼいカレンダーのチャンネル名も対応
-    short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4,
-         "テレ朝": 5, "テレビ朝日": 5,"TBS": 6, "テレ東": 7, "テレ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
+    short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4, "テレ朝": 5, "テレビ朝日": 5,
+         "TBS": 6, "TBSテレビ": 6, "テレ東": 7, "テレ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
          "BS日テレ": 141, "BS朝日": 151, "BS-TBS": 161, "BSテレ東": 171, "BSフジ": 181, "BS11": 211, "BS11": 211, "BS12": 222}
     if jkid in short_jkids:
         # 主要なチャンネルは短縮名でも指定できるように
@@ -861,8 +867,6 @@ if args.channel != "None" or args.fixmin:
         logger.info('エラー：「' + args.channel + '」は定義されていないチャンネルのため、連携できません。')
         sys.exit(1)
 
-    if str_date_time is None:
-        str_date_time = args.date_time
     m = re.search(r'^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$', str_date_time)
     if m:
         start_at = "{}-{}-{} {}:{}:{}".format(m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6)) # "2021-01-27 19:00"
@@ -880,14 +884,10 @@ if args.channel != "None" or args.fixmin:
         start_at = start_date + " " + str(start_hour) + ":" + start_min
         start_date_time = parse(start_at) - datetime.timedelta(seconds = 15) + datetime.timedelta(days = plus_days)
 
-    if total_minutes is None:
-        total_minutes = int(args.total_minutes) # 60
     if total_minutes >= 600:
         logger.info('エラー：600分以上は指定できません。')
         sys.exit(1)
     end_date_time = start_date_time + datetime.timedelta(minutes = total_minutes) + datetime.timedelta(seconds = 14)
-    if title is None:
-        title = args.title # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
     # commenomi用のコメント再生処理
     open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
     sys.exit(0)
