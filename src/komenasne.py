@@ -481,9 +481,9 @@ def get_content_data(ip_addr, playing_content_id):
     end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
     total_minutes = round(int(item['duration']) / 60)
     # 引数指定で再生中動画の再生時間を上書き
-    if args.overwritemin:
-        end_date_time = start_date_time + datetime.timedelta(seconds=(args.overwritemin * 60) + 14)
-        total_minutes = args.overwritemin
+    if overwritemin:
+        end_date_time = start_date_time + datetime.timedelta(seconds=(overwritemin * 60)) + datetime.timedelta(seconds=14)
+        total_minutes = overwritemin
     return jkid, start_date_time, end_date_time, total_minutes, title
 
 def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit):
@@ -636,7 +636,8 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
         if not ret:
             return False
     else:
-        print('ファイル名:' + base_file + '.xml')
+        if not mode_monitoring:
+            print('ファイル名:' + base_file + '.xml')
 
     # mode_silentが0の時はコメントビュアーを起動
     if not mode_silent:
@@ -800,6 +801,11 @@ if args.mode_monitoring:
     mode_silent = True
 else:
     mode_monitoring = False
+
+if args.overwritemin:
+    overwritemin = args.overwritemin
+else:
+    overwritemin = None
 
 # mode_limitが指定されているときはコメント流量を調整する
 try:
