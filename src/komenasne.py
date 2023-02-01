@@ -853,6 +853,9 @@ if args.channel != "None" or args.fixmin:
         # NHK総合_20230128_201445_35_有吉のお金発見 突撃！カネオくん「スター動物がいっぱい！動物園のお金の秘密」[字].xml
         # これを要素に分解
         m = re.search(r'^(.+)_(\d{8}_\d{6})_\d+_(.+)\.xml', args.fixmin[1])
+        if m is None:
+            print('エラー：ファイル名が誤っています。拡張子xmlのファイル名を指定してください。')
+            sys.exit(1)
         jkid = m.group(1)
         str_date_time = m.group(2)
         title = m.group(3)
