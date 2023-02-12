@@ -481,9 +481,9 @@ def get_content_data(ip_addr, playing_content_id):
     end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
     total_minutes = round(int(item['duration']) / 60)
     # 引数指定で再生中動画の再生時間を上書き
-    if overwritemin:
-        end_date_time = start_date_time + datetime.timedelta(seconds=(overwritemin * 60)) + datetime.timedelta(seconds=14)
-        total_minutes = overwritemin
+    if fixlive:
+        end_date_time = start_date_time + datetime.timedelta(seconds=(fixlive * 60)) + datetime.timedelta(seconds=14)
+        total_minutes = fixlive
     return jkid, start_date_time, end_date_time, total_minutes, title
 
 def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit):
@@ -492,7 +492,7 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
 
     try:
         kakolog = requests.get(f'https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml'
-            , headers=headers, timeout=3)
+            , headers=headers, timeout=5)
         kakolog.raise_for_status() # status200 チェック
     except requests.exceptions.RequestException as e:
         logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。', e)
@@ -766,7 +766,8 @@ usage_message = '''直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH
 
 サイレントモード: komenasne.exe --mode_silent
 常駐モード: komenasne.exe --mode_monitoring
-再生時間変更で再取得: komenasne.exe --fixmin 30 "TOKYO MX_20230126_012945_13_痛いのは嫌なので防御力に極振りしたいと思います。２ ＃３.xml"
+再生中の番組時間を強制上書き: komenasne.exe --fixlive 30
+ファイル名から時間変更で再取得: komenasne.exe --fixrec 30 "TOKYO MX_20230210_001202_30_お兄ちゃんはおしまい！ ＃６.xml"
 
 チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定
 '''
@@ -783,8 +784,8 @@ parser.add_argument('title', nargs="?", default="タイトル不明")
 parser.add_argument('-limit', choices=['none', 'high', 'middle', 'low'])
 parser.add_argument('--mode_silent', action='store_true')
 parser.add_argument('--mode_monitoring', action='store_true')
-parser.add_argument('--fixmin', nargs=2)
-parser.add_argument('--overwritemin', type=int) # 再生中動画の再生時間を上書き.分を指定する
+parser.add_argument('--fixrec', nargs=2)
+parser.add_argument('--fixlive', type=int) # 再生中動画の再生時間を上書き.分を指定する
 
 # 引数を解析する
 args = parser.parse_args()
@@ -802,10 +803,10 @@ if args.mode_monitoring:
 else:
     mode_monitoring = False
 
-if args.overwritemin:
-    overwritemin = args.overwritemin
+if args.fixlive:
+    fixlive = args.fixlive
 else:
-    overwritemin = None
+    fixlive = None
 
 # mode_limitが指定されているときはコメント流量を調整する
 try:
@@ -848,18 +849,18 @@ except KeyError:
     limit_ratio = 0
 
 # 直接取得モード
-if args.channel != "None" or args.fixmin:
-    if args.fixmin:
+if args.channel != "None" or args.fixrec:
+    if args.fixrec:
         # NHK総合_20230128_201445_35_有吉のお金発見 突撃！カネオくん「スター動物がいっぱい！動物園のお金の秘密」[字].xml
         # これを要素に分解
-        m = re.search(r'^(.+)_(\d{8}_\d{6})_\d+_(.+)\.xml', args.fixmin[1])
+        m = re.search(r'^(.+)_(\d{8}_\d{6})_\d+_(.+)\.xml', args.fixrec[1])
         if m is None:
             print('エラー：ファイル名が誤っています。拡張子xmlのファイル名を指定してください。')
             sys.exit(1)
         jkid = m.group(1)
         str_date_time = m.group(2)
         title = m.group(3)
-        total_minutes = int(args.fixmin[0])
+        total_minutes = int(args.fixrec[0])
     else:
         jkid = args.channel # 'jk4' または NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BS11
         str_date_time = args.date_time
@@ -867,7 +868,7 @@ if args.channel != "None" or args.fixmin:
         title = args.title # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
     # しょぼいカレンダーのチャンネル名も対応
     short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4, "テレ朝": 5, "テレビ朝日": 5,
-         "TBS": 6, "TBSテレビ": 6, "テレ東": 7, "テレ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
+         "TBS": 6, "TBSテレビ": 6, "テレ東": 7, "テレビ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
          "BS日テレ": 141, "BS朝日": 151, "BS-TBS": 161, "BSテレ東": 171, "BSフジ": 181, "BS11": 211, "BS11": 211, "BS12": 222}
     if jkid in short_jkids:
         # 主要なチャンネルは短縮名でも指定できるように
