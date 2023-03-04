@@ -377,7 +377,7 @@ def get_logger():
     sh.setLevel(INFO)
     logger.addHandler(sh)
 
-    fh = FileHandler("komenasne.log")
+    fh = FileHandler("komenasne.log", encoding='utf-8')
     fh.setLevel(INFO)
     fh_formatter = Formatter('%(asctime)s - %(message)s')
     fh.setFormatter(fh_formatter)
@@ -604,8 +604,8 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
     '''
     with open(tweet_template_file, 'r', encoding='utf-8') as f:
         message = f.read()
-        message = message.format(title=title, ch_name=ch_name, total_minutes=total_minutes, line_count=format(line_count, ","), min_count=min_count)
         message = start_date_time.strftime(message)
+        message = message.format(title=title, ch_name=ch_name, total_minutes=total_minutes, line_count=format(line_count, ","), min_count=min_count)
 
     # ツイートする
     try:
