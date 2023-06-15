@@ -498,20 +498,24 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
         logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。', e)
         return False
     line_count = 0
-    with open(logfile, 'w', encoding="utf-8") as saveFile:
-        start_date_unixtime = start_date_time.timestamp()
-        save_data_lines = []
-        for xml_line in kakolog.iter_lines():
-            line = rewrite_vpos(start_date_unixtime, xml_line.decode())
-            saveFile.write(line + '\n')
-            save_data_lines.append(line)
-            if '</chat>' in line:
-                line_count+=1
-            if line == '<title>503 Service Unavailable</title>':
-                logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。')
-                return False
-        if line_count < 1:
-            logger.info('エラー：指定された期間の過去ログは存在しません。')
+    try:
+        with open(logfile, 'w', encoding="utf-8") as saveFile:
+            start_date_unixtime = start_date_time.timestamp()
+            save_data_lines = []
+            for xml_line in kakolog.iter_lines():
+                line = rewrite_vpos(start_date_unixtime, xml_line.decode())
+                saveFile.write(line + '\n')
+                save_data_lines.append(line)
+                if '</chat>' in line:
+                    line_count+=1
+                if line == '<title>503 Service Unavailable</title>':
+                    logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。')
+                    return False
+            if line_count < 1:
+                logger.info('エラー：指定された期間の過去ログは存在しません。')
+    except Exception as e:
+        logger.info('エラー：過去ログの書き込みに失敗しました。', e)
+        return False
 
     # メモリ解放
     del kakolog
@@ -558,7 +562,11 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
                     saveFileLimit.write(line + '\n')
 
     total_sec = int(end_unixtime - start_unixtime)
-    logger.info("再生時間:{}時{}分{}秒 コメント数:{}".format(total_sec // 3600, (total_sec % 3600) // 60, total_sec % 60, line_count))
+    if total_minutes > 0:
+        min_count = format(line_count // total_minutes, ",")
+    else:
+        min_count = "0"
+    logger.info("再生時間:{}時{}分{}秒 総コメント数:{} 平均コメント数/分:{}".format(total_sec // 3600, (total_sec % 3600) // 60, total_sec % 60, line_count, min_count))
     if rate_per_seconde > 0 and line_count > 0:
         limit_name = {3:'間引き[高]', 4:'間引き[中]', 5:'間引き[低]'}
         logger.info("流量設定:{} 間引きコメント数:{} 間引き率:{}%".format(limit_name[rate_per_seconde], aborn_count, round(aborn_count / line_count * 100, 1)))
@@ -575,11 +583,10 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
     if consumer_key == "" or consumer_secret == "" or access_token == "" or access_token_secret == "":
         return True
     # Twitter APIを使用するための準備
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_token_secret)
-
-    # Twitter APIを使用するためのインスタンスを作成
-    api = tweepy.API(auth)
+    client = tweepy.Client(
+        consumer_key=consumer_key, consumer_secret=consumer_secret,
+        access_token=access_token, access_token_secret=access_token_secret
+    )
 
     # ツイートする内容を指定
     if total_minutes > 0:
@@ -609,7 +616,7 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
 
     # ツイートする
     try:
-        status = api.update_status(message)
+        status = client.create_tweet(text=message)
     except Exception as e:
         print("エラー：ツイートに失敗しました。" + e.args[0])
         status = False
@@ -639,7 +646,7 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
         if not mode_monitoring:
             print('ファイル名:' + base_file + '.xml')
 
-    # mode_silentが0の時はコメントビュアーを起動
+    # mode_silentがFalseの時はコメントビュアーを起動
     if not mode_silent:
         # commenomiが存在するかどうかをチェック
         if not os.path.exists(commenomi_path):
@@ -676,15 +683,22 @@ def playing_nasnes():
             get_playing_info = requests.get(f'http://{ip_addr}:64210/status/dtcpipClientListGet')
         except:
             logger.info(f'エラー：{ip_addr} のNASNEが見つかりません。')
-            sys.exit(1) # 致命的エラー
+            if mode_monitoring:
+                return
+            else:
+                sys.exit(1) # 致命的エラー
         playing_info = json.loads(get_playing_info.text)
         try:
             playing_content_id = playing_info['client'][0]['content']['id']
             # 再生中の番組情報を取得する
             jkid, start_date_time, end_date_time, total_minutes, title = get_content_data(ip_addr, playing_content_id)
-            # commenomi用のコメント再生処理
-            ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
-            return ret
+            # 番組終了5分以内は過去ログを取得しない
+            if datetime.datetime.timestamp(end_date_time + datetime.timedelta(minutes=5)) < datetime.datetime.timestamp((datetime.datetime.now())):
+                # commenomi用のコメント再生処理
+                ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
+                return ret
+            else:
+                pass
         except KeyError:
             pass
 
@@ -869,7 +883,8 @@ if args.channel != "None" or args.fixrec:
     # しょぼいカレンダーのチャンネル名も対応
     short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4, "テレ朝": 5, "テレビ朝日": 5,
          "TBS": 6, "TBSテレビ": 6, "テレ東": 7, "テレビ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
-         "BS日テレ": 141, "BS朝日": 151, "BS-TBS": 161, "BSテレ東": 171, "BSフジ": 181, "BS11": 211, "BS11": 211, "BS12": 222}
+         "NHK-BS1": 101,"NHK BS1": 101, "NHK BSプレミアム": 103, "BS日テレ": 141, "BS朝日": 151, 
+         "BS-TBS": 161, "BSテレ東": 171, "BSフジ": 181, "BS11": 211, "BS11イレブン": 211, "BS12": 222, "BS12トゥエルビ": 222}
     if jkid in short_jkids:
         # 主要なチャンネルは短縮名でも指定できるように
         jkid = "jk" + str(short_jkids[jkid])
