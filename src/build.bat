@@ -1,14 +1,13 @@
-rm komenasne.exe
+rmdir /s /q exe
+del komenasne.exe
 mkdir exe
 cd exe
 pipenv --rm
 pipenv --python 3.10.5
 pipenv shell
 REM ↓続きはこっからコピペ
-pipenv install requests
-pipenv install beautifulsoup4
-pipenv install python-dateutil
-pipenv install tweepy
+copy ..\requirements.txt .
+pipenv install -r requirements.txt
 pip install pyinstaller
 copy ..\komenasne.py .
 copy ..\komenasne.ico .

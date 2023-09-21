@@ -443,6 +443,7 @@ def replace_title(title):
     title = title.replace('>', '＞')
     title = title.replace(':', '：')
     title = title.replace('?', '？')
+    title = title.replace('"', '″')
     return title
 
 # vposをdateとdate_usecから再計算する（commenomi対策）
@@ -880,6 +881,8 @@ if args.channel != "None" or args.fixrec:
         str_date_time = args.date_time
         total_minutes = args.total_minutes # 60
         title = args.title # "有吉の壁▼サバゲー場で爆笑ネタ！見取り図＆吉住参戦▼カーベーイーツ！チョコ新技[字]"
+    title = title.replace('?', '？')
+    title = title.replace('〜', '～')
     # しょぼいカレンダーのチャンネル名も対応
     short_jkids = {"NHK": 1,"NHK総合": 1, "Eテレ": 2, "NHK Eテレ": 2, "日テレ": 4, "日本テレビ": 4, "テレ朝": 5, "テレビ朝日": 5,
          "TBS": 6, "TBSテレビ": 6, "テレ東": 7, "テレビ東京": 7, "フジ": 8, "フジテレビ": 8, "MX": 9, "TOKYO MX": 9,
