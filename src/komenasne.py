@@ -377,7 +377,7 @@ def get_logger():
     sh.setLevel(INFO)
     logger.addHandler(sh)
 
-    fh = FileHandler("komenasne.log", encoding='utf-8')
+    fh = FileHandler(os.path.dirname(os.path.abspath(sys.argv[0])) + "/komenasne.log", encoding='utf-8')
     fh.setLevel(INFO)
     fh_formatter = Formatter('%(asctime)s - %(message)s')
     fh.setFormatter(fh_formatter)
@@ -496,7 +496,7 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
             , headers=headers, timeout=5)
         kakolog.raise_for_status() # status200 チェック
     except requests.exceptions.RequestException as e:
-        logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。', e)
+        logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。', stack_info=True)
         return False
     line_count = 0
     try:
@@ -510,7 +510,7 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
                 if '</chat>' in line:
                     line_count+=1
                 if line == '<title>503 Service Unavailable</title>':
-                    logger.info('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。')
+                    logger.error('エラー：ニコニコ実況過去ログAPIのサイトから取得できません。 503 Service Unavailable')
                     return False
             if line_count < 1:
                 logger.info('エラー：指定された期間の過去ログは存在しません。')
@@ -717,7 +717,6 @@ def playing_nasnes():
 
 # init
 logger = get_logger()
-logger.info("starting..")
 ini = configparser.ConfigParser(interpolation=None)
 ini.read(os.path.dirname(os.path.abspath(sys.argv[0])) + '/komenasne.ini', 'UTF-8')
 nase_ini = ini['NASNE']['ip']
@@ -863,6 +862,9 @@ try:
 except KeyError:
     limit_ratio = 0
 
+if not mode_silent:
+    logger.info("starting..")
+
 # 直接取得モード
 if args.channel != "None" or args.fixrec:
     if args.fixrec:
@@ -931,5 +933,6 @@ else:
     # 通常実行
     ret = playing_nasnes()
     if not ret:
-        logger.info('エラー：再生中のnasneの動画が見つからないため、終了します。')
+        if not mode_silent:
+            logger.info('エラー：再生中のnasneの動画が見つからないため、終了します。')
         sys.exit(1)
