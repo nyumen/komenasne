@@ -17,6 +17,8 @@ import math
 from logging import getLogger, StreamHandler, Formatter, FileHandler, INFO
 import tweepy
 import argparse
+import pathlib
+
 
 '''
 # 必要
@@ -475,9 +477,6 @@ def get_content_data(ip_addr, playing_content_id):
     #print(item['title'].encode('unicode-escape'))
     title = replace_title(item['title'])
     jkid = get_jkid(item['serviceId'])
-    if not jkid:
-        logger.info('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
-        return False
     start_date_time = get_datetime(item['startDateTime'])
     end_date_time = start_date_time + datetime.timedelta(seconds=item['duration'])
     total_minutes = round(int(item['duration']) / 60)
@@ -485,6 +484,20 @@ def get_content_data(ip_addr, playing_content_id):
     if fixlive:
         end_date_time = start_date_time + datetime.timedelta(seconds=(fixlive * 60)) + datetime.timedelta(seconds=14)
         total_minutes = fixlive
+    if not jkid:
+        base_file = item['channelName'] + '_' + start_date_time.strftime("%Y%m%d_%H%M%S") + '_' + str(total_minutes) + '_' + title
+        logfile = kakolog_dir + base_file + '.xml'
+        # ファイルが存在しない場合
+        if not os.path.exists(logfile):
+            p = pathlib.Path(logfile)
+            p.touch()
+            ret = twitter_write(item['channelName'], start_date_time, total_minutes, title, 0)
+            if not ret:
+                logger.info("tweetに失敗しました。対象: " + title)
+            # logger.info('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
+            logger.info('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、空ファイルを作成します。')
+            logger.info("ファイル名:" + base_file + ".xml")
+
     return jkid, start_date_time, end_date_time, total_minutes, title
 
 def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit):
