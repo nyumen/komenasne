@@ -14,20 +14,20 @@ class NxKakoLog:
     def __init__(self):
 
         self.__jk_id: str = None
-        self.__start_dt: datetime = None
-        self.__end_dt: datetime = None
+        self.__start_at: float = None  # timestamp
+        self.__end_at: float = None  # timestamp
         self.__channels_url = "https://nx-jikkyo.tsukumijima.net/api/v1/channels"
         self.__channels_cache_file = "channels_cache.json"
         self.__cache_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "json_cache")
         os.makedirs(self.__cache_dir, exist_ok=True)
 
     # コメント取得処理（AM4時を跨ぐ場合は呼び出し側で2回に分けること）
-    def get_comment(self, jk_id: str, start_dt: datetime, end_dt: datetime) -> list:
+    def get_comment(self, jk_id: str, start_at: float, end_at: float) -> list:
 
         self.__jk_id = jk_id
-        self.__start_dt = start_dt
-        self.__end_dt = end_dt
-        del start_dt, end_dt
+        self.__start_at = start_at
+        self.__end_at = end_at
+        del start_at, end_at
 
         # NX apiから取得（キャッシュから取得）
         channels_lists = self.__fetch_data(self.__channels_url, self.__channels_cache_file)
@@ -49,7 +49,7 @@ class NxKakoLog:
             today_am4_dt = today_am4_dt - timedelta(days=1)
 
         thread_url = f"https://nx-jikkyo.tsukumijima.net/api/v1/threads/{thread_id}"
-        if self.__end_dt <= today_am4_dt:
+        if self.__end_at <= today_am4_dt.timestamp():
             # 当日4時より前のデータはキャッシュ
             thread_cache_file = f"thread_cache_{thread_id}.json"
             comment_list = self.__fetch_data(thread_url, thread_cache_file)
@@ -57,13 +57,12 @@ class NxKakoLog:
             req = requests.get(thread_url)
             comment_list = req.json()
 
-        start_date_unixtime = self.__start_dt.timestamp()
         lines = []
         for comment in comment_list["comments"]:
-            comment_date = self.__str_to_dt(comment["date"])
-            if self.__start_dt <= comment_date < self.__end_dt:
+            comment_at = datetime.fromisoformat(comment["date"]).timestamp()
+            if self.__start_at <= comment_at < self.__end_at:
                 xml_output = self.__json_to_xml(comment)
-                line = self.__rewrite_vpos(start_date_unixtime, xml_output)
+                line = self.__rewrite_vpos(self.__start_at, xml_output)
                 lines.append(line + "\n")
                 # print(comment["vpos"], comment["date"], comment["content"])
 
@@ -75,9 +74,9 @@ class NxKakoLog:
         for j in channels_lists:
             if j["id"] == self.__jk_id:
                 for s in j["threads"]:
-                    start_at = self.__str_to_dt(s["start_at"])
-                    end_at = self.__str_to_dt(s["end_at"])
-                    if start_at <= self.__start_dt < end_at:
+                    start_at = datetime.fromisoformat(s["start_at"]).timestamp()
+                    end_at = datetime.fromisoformat(s["end_at"]).timestamp()
+                    if start_at <= self.__start_at < end_at:
                         print(s)
                         thread_id = s["id"]
                         break
@@ -164,11 +163,11 @@ def main():
 
     jk_id = "jk9"  # 'TOKYO MX'
     # jk_id = "jk211"  # 'BS11'
-    start_dt = JST.localize(datetime(2024, 6, 13, 22, 29, 45))
-    end_dt = JST.localize(datetime(2024, 6, 13, 23, 00, 0))
+    start_at = JST.localize(datetime(2024, 6, 13, 22, 29, 45)).timestamp()
+    end_at = JST.localize(datetime(2024, 6, 13, 23, 00, 0)).timestamp()
 
     # 取得処理
-    lines = nx_kako_log.get_comment(jk_id, start_dt, end_dt)
+    lines = nx_kako_log.get_comment(jk_id, start_at, end_at)
 
     xml_file = "dungeon_mesi_240613.xml"
     with open(xml_file, "w", encoding="utf-8") as f:
