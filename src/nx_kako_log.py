@@ -103,13 +103,6 @@ class NxKakoLog:
 
         return json_data
 
-    def __str_to_dt(self, str_dt: str) -> datetime:
-        if len(str_dt) == 32:
-            dt = datetime.strptime(str_dt, "%Y-%m-%dT%H:%M:%S.%f%z")
-        else:
-            dt = datetime.strptime(str_dt, "%Y-%m-%dT%H:%M:%S%z")
-        return dt
-
     # 日時文字列をパースしてUNIXエポック時間とマイクロ秒部分を取得する関数
     def __parse_date_with_usec(self, date_str: str) -> int:
         dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))  # UTC表記に対応
