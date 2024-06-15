@@ -7,4 +7,4 @@ jkcommentviewer_path = jkcommentviewer.exeのパスを設定
 
 [LOG]
 # 取得したコメントの保存フォルダ
-kakolog_dir = C:\Users\kam\OneDrive\ドキュメント\work\komenasne\kakolog\
+kakolog_dir = .\kakolog\

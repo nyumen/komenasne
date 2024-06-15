@@ -18,6 +18,12 @@ from logging import getLogger, StreamHandler, Formatter, FileHandler, INFO
 import tweepy
 import argparse
 import pathlib
+import pytz
+from pathlib import Path
+# from nx_kako_log import NxKakoLog
+
+# タイムゾーンの設定
+JST = pytz.timezone("Asia/Tokyo")
 
 
 """
@@ -385,7 +391,8 @@ def get_logger():
     sh.setLevel(INFO)
     logger.addHandler(sh)
 
-    fh = FileHandler(os.path.dirname(os.path.abspath(sys.argv[0])) + "/komenasne.log", encoding="utf-8")
+    log_file_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "komenasne.log")
+    fh = FileHandler(log_file_path, encoding="utf-8")
     fh.setLevel(INFO)
     fh_formatter = Formatter("%(asctime)s - %(message)s")
     fh.setFormatter(fh_formatter)
@@ -414,20 +421,6 @@ def get_jkid(service_id):
 
 def get_datetime(date_time):
     return datetime.datetime.strptime(date_time, "%Y-%m-%dT%H:%M:%S+09:00")
-
-
-# タイムシフトのURL（watch/lv****** ）を取得
-def get_tsurl(jkid, date_time):
-    # "TBSテレビ【ニコニコ実況】2020年12月26日"等
-    ch_name = jk_names[jkid]
-    enc_title = ch_name + "【ニコニコ実況】" + date_time.strftime("%Y年%m月%d日")
-    logger.info("番組名:" + enc_title)
-    load_url = "https://live.nicovideo.jp/search?keyword=" + quote(enc_title) + "&status=onair&sortOrder=recentDesc"
-    html = requests.get(load_url, headers=headers)
-    soup = BeautifulSoup(html.content, "html.parser")
-    param = soup.find(class_="searchPage-ProgramList_TitleLink").get("href")
-    return "https://live2.nicovideo.jp/" + param
-
 
 # ファイル名に使用できない文字（ARIB外字）を変換
 def replace_title(title):
@@ -509,19 +502,18 @@ def get_content_data(ip_addr, playing_content_id):
             + "_"
             + title
         )
-        logfile = kakolog_dir + base_file + ".xml"
+        logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
         # ファイルが存在しない場合
         if not os.path.exists(logfile):
             p = pathlib.Path(logfile)
             p.touch()
             ret = twitter_write(item["channelName"], start_date_time, total_minutes, title, 0)
             if not ret:
-                logger.info("tweetに失敗しました。対象: " + title)
-            # logger.info('エラー：「' + item['channelName'] + '」は定義されていないチャンネルのため、連携できません。')
+                logger.info(f"tweetに失敗しました。対象: {title}")
             logger.info(
-                "エラー：「" + item["channelName"] + "」は定義されていないチャンネルのため、空ファイルを作成します。"
+                f"エラー：「{item["channelName"]}」は定義されていないチャンネルのため、空ファイルを作成します。"
             )
-            logger.info("ファイル名:" + base_file + ".xml")
+            logger.info(f"ファイル名:{base_file}.xml")
 
     return jkid, start_date_time, end_date_time, total_minutes, title
 
@@ -529,7 +521,6 @@ def get_content_data(ip_addr, playing_content_id):
 def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit):
     start_unixtime = start_date_time.timestamp()
     end_unixtime = end_date_time.timestamp()
-
     try:
         kakolog = requests.get(
             f"https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml",
@@ -538,24 +529,49 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
         )
         kakolog.raise_for_status()  # status200 チェック
     except requests.exceptions.RequestException as e:
+
         logger.info("エラー：ニコニコ実況過去ログAPIのサイトから取得できません。", stack_info=True)
         return False
+
+    start_date_unixtime = start_date_time.timestamp()
+    lines = []
     line_count = 0
+    for xml_line in kakolog.iter_lines():
+        line = rewrite_vpos(start_date_unixtime, xml_line.decode())
+        lines.append(line)
+        if "</chat>" in line:
+            line_count += 1
+        if line == "<title>503 Service Unavailable</title>":
+            logger.error("エラー：ニコニコ実況過去ログAPIのサイトから取得できません。 503 Service Unavailable")
+            return False
+
+    # # 過去ログAPIにログがないときは避難所から取得
+    # if line_count < 1 and 1718000400 <= start_unixtime:
+    #     lines = []
+    #     try:
+    #         nx_kako_log = NxKakoLog()
+    #         # NX-Jikkyoからの取得処理
+    #         logger.info("ニコニコ実況避難所からログを取得中")
+    #         tmp_lines = nx_kako_log.get_comment(jkid, start_unixtime, end_unixtime)
+    #         line_count = len(tmp_lines)
+    #         if line_count < 1:
+    #             logger.info("エラー：ニコニコ実況避難所に指定された期間のログは存在しません。")
+    #         lines.append('<?xml version="1.0" encoding="UTF-8"?>' + "\n")
+    #         lines.append("<packet>" + "\n")
+    #         lines += tmp_lines
+    #         lines.append("</packet>" + "\n")
+
+    #     except Exception as e:
+    #         logger.info("エラー：ニコニコ実況避難所のAPIから取得できません。")
+    #         return False
+
+    if line_count < 1:
+        logger.info("エラー：指定された期間の過去ログは存在しません。")
+
     try:
         with open(logfile, "w", encoding="utf-8") as saveFile:
-            start_date_unixtime = start_date_time.timestamp()
-            save_data_lines = []
-            for xml_line in kakolog.iter_lines():
-                line = rewrite_vpos(start_date_unixtime, xml_line.decode())
-                saveFile.write(line + "\n")
-                save_data_lines.append(line)
-                if "</chat>" in line:
-                    line_count += 1
-                if line == "<title>503 Service Unavailable</title>":
-                    logger.error("エラー：ニコニコ実況過去ログAPIのサイトから取得できません。 503 Service Unavailable")
-                    return False
-            if line_count < 1:
-                logger.info("エラー：指定された期間の過去ログは存在しません。")
+            saveFile.writelines(lines)
+
     except Exception as e:
         logger.info("エラー：過去ログの書き込みに失敗しました。", e)
         return False
@@ -563,46 +579,6 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
     # メモリ解放
     del kakolog
     gc.collect()
-
-    if rate_per_seconde > 0 and line_count > 0:
-        base_date_key = ""
-        date_key_count = 0
-        aborn_count = 0
-        key_pattern = re.compile(r'date=("\d+")')
-        aborn_pattern = re.compile(r"(<chat [^>]+>).+(</chat>)")
-        limit_line_data = []
-        for line in save_data_lines:
-            key = key_pattern.search(line)
-            aborn_text = ""
-            if key is not None:
-                date_key = key.group(1)
-                # コメント流量が指定されているときは_limitファイルを作成する
-                if base_date_key != date_key:
-                    base_date_key = date_key
-                    date_key_count = 0
-                else:
-                    aborn_text = aborn_pattern.sub(r"\1{}\2".format("\u202A"), line)
-                    if len(line) - len(aborn_text) < 6:
-                        date_key_count += 0.5
-                    else:
-                        date_key_count += 1
-            if date_key_count < rate_per_seconde or aborn_text == "" or "</chat>" not in line or " shita" in line:
-                # 秒間rate値を超えてない、date=が含まれていない、</chat>が含まれていない、"shita"が含まれている場合（歌詞ニキ対応）はそのままファイル出力
-                ####saveFileLimit.write(line + '\n')
-                limit_line_data.append(line)
-            else:
-                # comment_aborn_flgがTrueの場合、透明あぼーんで書き込む
-                if comment_aborn_flg:
-                    limit_line_data.append(aborn_text)
-                    #####saveFileLimit.write(aborn_pattern.sub(r'\1{}\2'.format('\u202A'), line) + '\n')
-                aborn_count += 1
-        if (aborn_count / line_count * 100) <= limit_ratio:
-            # 間引きするコメントがlimit_ratioの以下場合（しじみチャンス対策）、limitファイルを作成しない
-            logfile_limit = logfile
-        else:
-            with open(logfile_limit, "w", encoding="utf-8") as saveFileLimit:
-                for line in limit_line_data:
-                    saveFileLimit.write(line + "\n")
 
     total_sec = int(end_unixtime - start_unixtime)
     if total_minutes > 0:
@@ -614,15 +590,6 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
             total_sec // 3600, (total_sec % 3600) // 60, total_sec % 60, line_count, min_count
         )
     )
-    if rate_per_seconde > 0 and line_count > 0:
-        limit_name = {3: "間引き[高]", 4: "間引き[中]", 5: "間引き[低]"}
-        logger.info(
-            "流量設定:{} 間引きコメント数:{} 間引き率:{}%".format(
-                limit_name[rate_per_seconde], aborn_count, round(aborn_count / line_count * 100, 1)
-            )
-        )
-        if (aborn_count / line_count * 100) <= limit_ratio:
-            logger.info("間引き率が" + str(limit_ratio) + "%以下のため、limitファイルの作成をスキップしました。")
 
     ret = twitter_write(jk_names[jkid], start_date_time, total_minutes, title, line_count)
     if not ret:
@@ -648,9 +615,9 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
     else:
         min_count = "0"
 
-    tweet_template_file = os.path.dirname(os.path.abspath(sys.argv[0])) + "/tweet_template.txt"
+    tweet_template_file = f"{os.path.dirname(os.path.abspath(sys.argv[0]))}/tweet_template.txt"
     if not os.path.exists(tweet_template_file):
-        logger.info("エラー：ツイートテンプレートファイルが見つかりません。" + tweet_template_file)
+        logger.info(f"エラー：ツイートテンプレートファイルが見つかりません。{tweet_template_file}")
         return False
     """
     #nasne の録画を再生しました。
@@ -678,7 +645,7 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
     try:
         status = client.create_tweet(text=message)
     except Exception as e:
-        print("エラー：ツイートに失敗しました。" + e.args[0])
+        print(f"エラー：ツイートに失敗しました。{e.args[0]}")
         status = False
         pass
     # ツイートが成功したかどうかを返す
@@ -687,21 +654,14 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
 
 def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title):
 
-    # フォルダが存在するかどうかをチェック
-    if not os.path.exists(kakolog_dir):
-        logger.info("エラー：ログフォルダが見つからないため、終了します。" + kakolog_dir)
-        return False
-
-    base_file = (
-        jk_names[jkid] + "_" + start_date_time.strftime("%Y%m%d_%H%M%S") + "_" + str(total_minutes) + "_" + title
-    )
-    logfile = kakolog_dir + base_file + ".xml"
-    logfile_limit = kakolog_dir + base_file + "_limit.xml"
+    base_file = f"{jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}" 
+    logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
+    logfile_limit = os.path.join(kakolog_dir, f"{base_file}_limit.xml")
 
     # ファイルが存在しない場合
     if not os.path.exists(logfile):
         # 過去ログAPIから取得
-        logger.info("ファイル名:" + base_file + ".xml")
+        logger.info(f"ファイル名:{base_file}.xml")
         ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, logfile_limit)
         if not ret:
             return False
@@ -727,9 +687,8 @@ def open_jkcommentviewer(service_id):
         return True
     # ライブ視聴中のチャンネルを取得する
     jkid = get_jkid(service_id)
-    now_datetime = datetime.datetime.now() - datetime.timedelta(hours=4)
     try:
-        url = get_tsurl(jkid, now_datetime)
+        url = f"https://nx-jikkyo.tsukumijima.net/watch/jk{jkid}"
     except:
         logger.info("エラー：ニコニコ実況番組が見つかりません。")
         return False
@@ -791,30 +750,26 @@ nasne_ips = [x.strip() for x in nase_ini.split(",")]
 
 headers = {"user-agent": "komenasne"}
 
-is_windows = platform.platform().startswith("Windows")
-
 # iniファイル読み込み
 try:
-    commeon_path = ini["PLAYER"]["commeon_path"]
-except KeyError:
-    commeon_path = None
-
-try:
-    commenomi_path = ini["PLAYER"]["commenomi_path"]
+    commenomi_path = Path(ini["PLAYER"]["commenomi_path"])
 except KeyError:
     commenomi_path = None
 
-if commeon_path:
-    # 以前のiniの互換性維持のためcommeon_pathで上書きする
-    commenomi_path = commeon_path
+try:
+    kakolog_dir = Path(ini["LOG"]["kakolog_dir"])
+    if not Path(kakolog_dir).is_absolute():
+        # 相対パスの時
+        kakolog_dir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), kakolog_dir)
 
-kakolog_dir = None
-if commenomi_path and is_windows:
-    commenomi_path = commenomi_path.replace(os.sep, os.sep + os.sep)
-    kakolog_dir = ini["LOG"]["kakolog_dir"]
-    if "%temp%" in kakolog_dir:
-        kakolog_dir = kakolog_dir.replace("%temp%", os.environ["temp"])
-    kakolog_dir = kakolog_dir.replace(os.sep, os.sep + os.sep)
+    # フォルダが存在するかどうかをチェック
+    if not os.path.exists(kakolog_dir):
+        logger.info(f"エラー：ログフォルダが見つからないため、終了します。{kakolog_dir}")
+        exit(1)
+
+except KeyError:
+    logger.info(f"iniファイルにkakolog_dirを設定してください")
+    exit(1)
 
 try:
     jkcommentviewer_path = ini["PLAYER"]["jkcommentviewer_path"]
@@ -937,7 +892,8 @@ if args.channel != "None" or args.fixrec:
     if args.fixrec:
         # NHK総合_20230128_201445_35_有吉のお金発見 突撃！カネオくん「スター動物がいっぱい！動物園のお金の秘密」[字].xml
         # これを要素に分解
-        m = re.search(r"^(.+)_(\d{8}_\d{6})_\d+_(.+)\.xml", args.fixrec[1])
+        fixrec_file = os.path.splitext(os.path.basename(args.fixrec[1]))[0]
+        m = re.search(r"^(.+)_(\d{8}_\d{6})_\d+_(.+)", fixrec_file)
         if m is None:
             print("エラー：ファイル名が誤っています。拡張子xmlのファイル名を指定してください。")
             sys.exit(1)

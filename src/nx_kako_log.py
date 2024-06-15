@@ -1,10 +1,10 @@
 import requests
 import json
-from datetime import datetime, timedelta, timezone, time
-from dateutil import parser
+from datetime import datetime, timezone
 import pytz
 import os
 import math
+import sys
 
 # タイムゾーンの設定
 JST = pytz.timezone("Asia/Tokyo")
@@ -18,7 +18,7 @@ class NxKakoLog:
         self.__end_at: float = None  # timestamp
         self.__channels_url = "https://nx-jikkyo.tsukumijima.net/api/v1/channels"
         self.__channels_cache_file = "channels_cache.json"
-        self.__cache_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "json_cache")
+        self.__cache_dir = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "json_cache")
         os.makedirs(self.__cache_dir, exist_ok=True)
 
     # コメント取得処理（AM4時を跨ぐ場合は呼び出し側で2回に分けること）
@@ -30,37 +30,50 @@ class NxKakoLog:
         del start_at, end_at
 
         # NX apiから取得（キャッシュから取得）
-        channels_lists = self.__fetch_data(self.__channels_url, self.__channels_cache_file)
-        thread_id = self.__get_thread_id(channels_lists)
+        thread_id = None
+        channels_cache_file_path = os.path.join(self.__cache_dir, self.__channels_cache_file)
+        if os.path.exists(channels_cache_file_path):
+            with open(channels_cache_file_path, "r", encoding="utf-8") as f:
+                channels_lists = json.load(f)
+            thread_id = self.__get_thread_id(channels_lists)
+
         if thread_id is None:
             # NX apiから取得（直接取得）
-            channels_lists = self.__fetch_data(self.__channels_url, self.__channels_cache_file, over_write_flg=True)
+            req = requests.get(self.__channels_url)
+            channels_lists = req.json()
+            # キャッシュファイルに保存
+            with open(channels_cache_file_path, "w", encoding="utf-8") as f:
+                json.dump(channels_lists, f, ensure_ascii=False, indent=4)
             thread_id = self.__get_thread_id(channels_lists)
             if thread_id is None:
                 raise Exception(f"thread_id 該当なし。処理を続行できません。")  # 雑に終了
 
-        # 当日の朝4時のdatetimeオブジェクトを作成
-        now_dt = datetime.now(JST)
-        today_am4_dt = JST.localize(datetime.combine(now_dt.date(), time(4, 0)))
-
-        # JSTの0時から4時までの間かどうかをチェック
-        if now_dt < today_am4_dt:
-            # 前日の朝4時を取得
-            today_am4_dt = today_am4_dt - timedelta(days=1)
-
+        # スレッド情報取得
         thread_url = f"https://nx-jikkyo.tsukumijima.net/api/v1/threads/{thread_id}"
-        if self.__end_at <= today_am4_dt.timestamp():
-            # 当日4時より前のデータはキャッシュ
-            thread_cache_file = f"thread_cache_{thread_id}.json"
-            comment_list = self.__fetch_data(thread_url, thread_cache_file)
+        thread_cache_file_path = os.path.join(self.__cache_dir, f"thread_cache_{thread_id}.json")
+        print(thread_cache_file_path)
+        if os.path.exists(thread_cache_file_path):
+            # キャッシュから取得
+            with open(thread_cache_file_path, "r", encoding="utf-8") as f:
+                comment_list = json.load(f)
         else:
+            # キャッシュファイルが存在しない
             req = requests.get(thread_url)
             comment_list = req.json()
+            print("status", comment_list["status"])
+            if comment_list["status"] != "ACTIVE":
+                # アクティブなスレッド以外はキャッシュファイルに保存
+                with open(thread_cache_file_path, "w", encoding="utf-8") as f:
+                    json.dump(comment_list, f, ensure_ascii=False, indent=4)
 
         lines = []
         for comment in comment_list["comments"]:
             comment_at = datetime.fromisoformat(comment["date"]).timestamp()
+            if comment["content"] == "最後のダン飯待機":
+                print(self.__start_at, comment_at, self.__end_at)
             if self.__start_at <= comment_at < self.__end_at:
+                print("あ")
+                # if self.__start_at <= comment_at < self.__end_at:
                 xml_output = self.__json_to_xml(comment)
                 line = self.__rewrite_vpos(self.__start_at, xml_output)
                 lines.append(line + "\n")
@@ -77,31 +90,9 @@ class NxKakoLog:
                     start_at = datetime.fromisoformat(s["start_at"]).timestamp()
                     end_at = datetime.fromisoformat(s["end_at"]).timestamp()
                     if start_at <= self.__start_at < end_at:
-                        print(s)
                         thread_id = s["id"]
                         break
         return thread_id
-
-    def __get_cache_file_path(self, file_name: str) -> str:
-        file_path = os.path.join(self.__cache_dir, file_name)
-        return os.path.join(os.path.abspath(os.path.dirname(__file__)), file_path)
-
-    def __fetch_data(self, url: str, cache_file_name: str, over_write_flg: bool = False) -> dict:
-
-        cache_file_path = self.__get_cache_file_path(cache_file_name)
-
-        if not os.path.exists(cache_file_path) or over_write_flg:
-            # キャッシュファイルが存在しない、または強制性取得フラグ
-            req = requests.get(url)
-            json_data = req.json()
-            # キャッシュファイルに保存
-            with open(cache_file_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f, ensure_ascii=False, indent=4)
-        else:
-            with open(cache_file_path, "r", encoding="utf-8") as f:
-                json_data = json.load(f)
-
-        return json_data
 
     # 日時文字列をパースしてUNIXエポック時間とマイクロ秒部分を取得する関数
     def __parse_date_with_usec(self, date_str: str) -> int:
@@ -149,28 +140,28 @@ class NxKakoLog:
         return xml_line[:vpos_pos] + str(new_vpos) + xml_line[vpos_pos + vpos_str_count :]
 
 
-def main():
+# def main():
 
-    # テスト
-    nx_kako_log = NxKakoLog()
+#     # テスト
+#     nx_kako_log = NxKakoLog()
 
-    jk_id = "jk9"  # 'TOKYO MX'
-    # jk_id = "jk211"  # 'BS11'
-    start_at = JST.localize(datetime(2024, 6, 13, 22, 29, 45)).timestamp()
-    end_at = JST.localize(datetime(2024, 6, 13, 23, 00, 0)).timestamp()
+#     jk_id = "jk9"  # 'TOKYO MX'
+#     # jk_id = "jk211"  # 'BS11'
+#     # start_at = JST.localize(datetime(2024, 6, 13, 22, 29, 45)).timestamp()
+#     # end_at = JST.localize(datetime(2024, 6, 13, 23, 00, 0)).timestamp()
 
-    # 取得処理
-    lines = nx_kako_log.get_comment(jk_id, start_at, end_at)
+#     # 取得処理
+#     lines = nx_kako_log.get_comment(jk_id, start_at, end_at)
 
-    xml_file = "dungeon_mesi_240613.xml"
-    with open(xml_file, "w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>' + "\n")
-        f.write("<packet>" + "\n")
-        f.writelines(lines)
-        f.write("</packet>" + "\n")
+#     xml_file = "dungeon_mesi_240613.xml"
+#     with open(xml_file, "w", encoding="utf-8") as f:
+#         f.write('<?xml version="1.0" encoding="UTF-8"?>' + "\n")
+#         f.write("<packet>" + "\n")
+#         f.writelines(lines)
+#         f.write("</packet>" + "\n")
 
-    print(len(lines), "件")
+#     print(len(lines), "件")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
