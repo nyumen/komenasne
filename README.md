@@ -22,50 +22,22 @@ nasneの動画再生と合わせての実況コメントを再生します。
 - nasneの再生に連動して、commenomi（こめのみ）を実行アプリです。v1.1より視聴中のチャンネルに応じたjkcommentviewerの起動にも対応。
 - Windowsのnasne動画再生ソフト「PC TV Plus」が必要です。
 - 動作設定はiniファイル。事前に自分の環境に合わせてテキストエディタで書き換える必要あり（nasneのローカルIPやチャンネル設定など）
-- 過去ログAPIの取得タイミングのため、直近15分以内のコメントは取得できません。
-- 常駐モードで起動することにより、torneやPC TV Plusで録画を再生したタイミングで番組情報をツイートさせることが可能です。kakologフォルダをチェックして、最初の１回だけツイートします(v1.1より)
-- PC TV Plusやtorneにニコニコ実況機能が搭載されたので存在意義が微妙になりましたが、BS民放のコメントも再生することができます。  
+- 過去ログAPIの取得タイミングのため、直近5分以内のコメントは取得できません。
+- PC TV Plusやtorneにニコニコ実況機能が搭載されたので存在意義が微妙になりましたが、BS民放のコメントも再生することができます。
+- ニコニコ実況へのコメント投稿はNX-Jikkyoでニコニコアカウントと連動しての投稿がおすすめです。
   
 ## セットアップ
-komenasne.iniを開き、[NASNE]セクションの"ip"にカンマ区切りでIPを記入してください。nasneのIPはtorneの設定画面で確認できます。  
+- commenomiをダウンロードして、背景を透明、常に最前面になるように設定します。  
+- komenasne.ini.exampleをkomenasne.iniにリネームしてテキストエディタで開き、[NASNE]セクションの"ip"にカンマ区切りでIPを記入してください。nasneのIPはtorneの設定画面で確認できます。  
 *バージョンの古いメモ帳を使っている場合は、改行されずに表示されます。Windows10を最新版にアップデートするか、テキストエディタで編集してください。*    
-次に、commenomi_pathを自分の環境に修正してください。commenomi.exeのプロパティからパスをコピーできます。  
-jkcommentviewerと連動したい場合はjkcommentviewer_pathを修正してください。  
-Twitterと連動したい場合は[TWITTER]も設定してください。[こちら](https://note.com/kamm/n/n8a519502718c)に説明があります。メインアカウントは邪魔になるので専用アカウントを作るのがおすすめです。　 
-  
+- 次に、commenomi_pathを自分の環境に修正してください。commenomi.exeのプロパティからパスをコピーできます。  
+- jkcommentviewerと連動したい場合はインストールしたjkcommentviewer.exeのパスをiniファイルのjkcommentviewer_pathに設定してください。
+- komenasne.exeを右クリックして「タスクバーに配置」を選び、そこからタスクバーの一番左に配置します。
   
 ## 実行
-- komenasne.exeをタスクバーの一番左に配置し、視聴したい録画を再生したあとにWindowsキーを押しながら数字の1を押すと、commenomiやjkcommentviewerが起動します。commenomiは右クリックして「このウィンドウを常に最前面に」のチェックをつけてください。
+- （komenasneがタスクバーの一番左に配置されている状態で）PC TV Plusで番組を再生が開始された後にWindowsキーを押しながら数字の1を押すと、commenomiやjkcommentviewerが起動し再生中の番組に応じたコメントが流れます。アニメの場合、再生が始まると同時にキーボードの"k"を入力すると大体時間が合わせられます。アニメ以外はキーボードのカーソルの左右やマウスのホイールでタイミングを合わせてください。  
 インストーラーの仕様上、ウィルス対策ソフトWindows Defenderの誤検知に引っかかりやすいため、都度許可するかディレクトリごと対象外としてください。  
 参考：[Windows 10のWindows Defenderで特定のファイルやフォルダーをスキャンしないように設定する方法](https://faq.nec-lavie.jp/qasearch/1007/app/servlet/relatedqa?QID=018507)
-  
-  
-## コメント流量設定
-v1.08から実装されたコメント流量調整機能の説明です。
-komenasne.iniに[COMMENT]という項目が追加されています。コメント流量が指定した値を超えると、オリジナルのxmlファイルとともに間引きされたlimitファイルが作成されます。
-例：
-```
-TBSテレビ_20211121_205946_54_日曜劇場「日本沈没－希望のひと－」第６話「抗えない日本沈没」[字][デ].xml
-↓↓↓
-TBSテレビ_20211121_205946_54_日曜劇場「日本沈没－希望のひと－」第６話「抗えない日本沈没」[字][デ]_limit.xml
-```
-設定値について
-"comment_limit": noneを指定すると流量調整機能は動作しません。middleにするとおおよそコメントが重ならない程度のコメント量となり、lowの場合は字幕が読める程度にまで減ります。
-"aborn_or_delete": 間引きされたコメントの行を削除するか非表示コメントに置き換えるかが選択できます。勢いグラフを使用しない方は、commenomiの動作が軽くなるdeleteを指定してください。
-"limit_ratio" 間引きされたコメントが少ない場合、limitファイルを作成しない条件を指定します。例として、5を指定した場合、本来のコメント数に対して間引きされたコメント数が5%未満であればlimitファイルを作成しません。
-＝＝＝
-ちなみに歌詞ニキさんの下部固定コメントについては必ず表示されるようになっています。
-
-komenasne.iniのデフォルト設定値(推奨値)
-```[COMMENT]
-# コメント流量設定 none, low, middle, high
-comment_limit = middle
-# 間引きしたコメントの出力設定
-# aborn: 透明あぼーん(勢いグラフはそのまま、ファイルサイズ大), delete: 削除(勢いグラフ不正確、ファイルサイズ小)
-aborn_or_delete = aborn
-# 間引きしたコメント数がこの数値の%以下の場合、limitファイルを作成しない(0-99で指定、0で必ずlimitファイルを作成)
-limit_ratio = 5
-```
   
 ## commenomiの便利なショートカット
 - SPACE 一時停止/再生
@@ -79,16 +51,8 @@ limit_ratio = 5
 - Ctrl + → 高速早送り
 - Ctrl + ← 高速早戻し
 - マウスのホイールで微調整
-  
-  
-## 高度な使い方
-【常駐モード】  
-mode_monitoringをつけると、常時起動して1分に1回NANSEをチェックし、過去ログのダウンロードとツイートのみ行います。commenomiは起動しません。
-```
-komenasne.exe mode_monitoring
-```
-  
-  
+- ダブルクリックで全画面とウインドウ表示の切り替え
+
 【直接取得モード】  
 再生中のNASNEの情報を参照せず、チャンネルと日時を指定してコメントログを取得する機能です。
 ```
@@ -119,16 +83,10 @@ jk333 AT-X
 ```
   
   
-【サイレントモード】  
-mode_silentをつけるとkommenomiが起動せず、xmlファイルのみが作成されます。
-```
-komenasne.exe mode_silent
-```
-  
-  
 ## スペシャルサンクス
 - commenomi (こめのみ) http://air.fem.jp/commenomi/
 - ニコニコ実況 過去ログ API https://jikkyo.tsukumijima.net/
+- NX-Jikkyo https://nx-jikkyo.tsukumijima.net
 - チャンネルリスト　NicoJK　elaina/saya
 - アイコン提供 SW-326JKM様 https://www.nicovideo.jp/user/289866
 <img src="src/logo_komenas1.png" alt="ロゴ1" width="8%" height="8%"> 
