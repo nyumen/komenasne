@@ -11,12 +11,12 @@ nasneの動画再生と合わせての実況コメントを再生します。
 [komenasneでトルネっぽく実況コメント付きでnasneの動画を再生させる](https://note.com/kamm/n/n8a519502718c)*  
   
   
-## アップデート内容
-- jkcommentviewrの連動に対応しました。
-- 録画を再生した際にツイートすることが可能なりました（実況コメント数を確認したかったためと、ライフログ的な目的で作者が欲しかった機能）
-- 上記のツイート機能と関連して、常駐して起動することが可能になりました（出先でスマホのtorneで再生したときもツイートさせたかったため）  
-<img src="src/tweet_sample.jpg" alt="ツイートサンプル" width="30%" height="30%">  
-
+## 動作に必要な環境
+- Nasne
+- Windows環境
+- PC TV Plus
+- commenomi
+- jkcommentviewer（任意）
   
 ## 説明
 - nasneの再生に連動して、commenomi（こめのみ）を実行アプリです。v1.1より視聴中のチャンネルに応じたjkcommentviewerの起動にも対応。
