@@ -1,29 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
 
-rem ƒoƒbƒ`ƒtƒ@ƒCƒ‹‚ÌƒfƒBƒŒƒNƒgƒŠ‚ğæ“¾
+rem ãƒãƒƒãƒãƒ•ã‚¡ã‚¤ãƒ«ã®ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‚’å–å¾—
 set "currentDir=%~dp0"
 
 if "%~1"=="" (
-    rem ƒtƒ@ƒCƒ‹‚ªƒhƒ‰ƒbƒO‚³‚ê‚È‚©‚Á‚½ê‡‚Ìˆ—
+    rem ãƒ•ã‚¡ã‚¤ãƒ«ãŒãƒ‰ãƒ©ãƒƒã‚°ã•ã‚Œãªã‹ã£ãŸå ´åˆã®å‡¦ç†
     :input_filename
-    set /p filename=XMLƒtƒ@ƒCƒ‹–¼‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢i—á: NHK‘‡_20240414_000946_30_ƒŒƒMƒ…ƒ‰[”Ô‘g‚Ö‚Ì“¹ Å[“ú–{Œ¤‹†`ŠO‘l”m‚Ì–Ú`[š].xmlj: 
+    set /p filename=XMLãƒ•ã‚¡ã‚¤ãƒ«åã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ï¼ˆä¾‹: NHKç·åˆ_20240414_000946_30_ãƒ¬ã‚®ãƒ¥ãƒ©ãƒ¼ç•ªçµ„ã¸ã®é“ æœ€æ·±æ—¥æœ¬ç ”ç©¶ï½å¤–å›½äººåšå£«ã®ç›®ï½[å­—].xmlï¼‰: 
 ) else (
-    rem ƒhƒ‰ƒbƒO‚³‚ê‚½ƒtƒ@ƒCƒ‹‚Ì–¼‘O‚ğ•\¦
+    rem ãƒ‰ãƒ©ãƒƒã‚°ã•ã‚ŒãŸãƒ•ã‚¡ã‚¤ãƒ«ã®åå‰ã‚’è¡¨ç¤º
     for %%i in (%*) do (
         set "file=%%~i"
         set "filename=%%~nxi"
-        echo ƒhƒ‰ƒbƒO‚³‚ê‚½ƒtƒ@ƒCƒ‹–¼: !filename!
+        echo ãƒ‰ãƒ©ãƒƒã‚°ã•ã‚ŒãŸãƒ•ã‚¡ã‚¤ãƒ«å: !filename!
     )
 )
 
 :input_minutes
-set /p minutes=•ª‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢i—á: 30j: 
-rem “ü—Í‚ª”š‚Å‚ ‚é‚±‚Æ‚ğŠm”F
+set /p minutes=åˆ†ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ï¼ˆä¾‹: 30ï¼‰: 
+rem å…¥åŠ›ãŒæ•°å­—ã§ã‚ã‚‹ã“ã¨ã‚’ç¢ºèª
 set "isnum=1"
 for /l %%i in (0,1,9) do (
     if "!minutes:~%%i,1!" geq "0" if "!minutes:~%%i,1!" leq "9" (
-        rem ‰½‚à‚µ‚È‚¢
+        rem ä½•ã‚‚ã—ãªã„
     ) else (
         set "isnum=0"
     )
@@ -32,18 +32,18 @@ for /l %%i in (0,1,9) do (
 if "!isnum!"=="1" (
     goto run_command
 ) else (
-    echo ”š‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢B
+    echo æ•°å­—ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ã€‚
     goto input_minutes
 )
 
 :run_command
-rem ƒhƒ‰ƒbƒO•ƒhƒƒbƒv‚³‚ê‚½ƒtƒ@ƒCƒ‹‚ğˆ—
+rem ãƒ‰ãƒ©ãƒƒã‚°ï¼†ãƒ‰ãƒ­ãƒƒãƒ—ã•ã‚ŒãŸãƒ•ã‚¡ã‚¤ãƒ«ã‚’å‡¦ç†
 if "%~1"=="" (
-    rem ƒ†[ƒU[‚ª“ü—Í‚µ‚½ƒtƒ@ƒCƒ‹‚ğˆ—
+    rem ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒå…¥åŠ›ã—ãŸãƒ•ã‚¡ã‚¤ãƒ«ã‚’å‡¦ç†
     echo Running: "%currentDir%komenasne.exe" --fixrec !minutes! "!filename!"
     "%currentDir%komenasne.exe" --fixrec !minutes! "!filename!"
 ) else (
-    rem ƒhƒ‰ƒbƒO•ƒhƒƒbƒv‚³‚ê‚½ƒtƒ@ƒCƒ‹‚ğˆ—
+    rem ãƒ‰ãƒ©ãƒƒã‚°ï¼†ãƒ‰ãƒ­ãƒƒãƒ—ã•ã‚ŒãŸãƒ•ã‚¡ã‚¤ãƒ«ã‚’å‡¦ç†
     for %%i in (%*) do (
         set "file=%%~i"
         set "filename=%%~nxi"
