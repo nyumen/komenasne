@@ -20,6 +20,7 @@ import argparse
 import pathlib
 import pytz
 from pathlib import Path
+
 # from nx_kako_log import NxKakoLog
 
 # タイムゾーンの設定
@@ -422,6 +423,7 @@ def get_jkid(service_id):
 def get_datetime(date_time):
     return datetime.datetime.strptime(date_time, "%Y-%m-%dT%H:%M:%S+09:00")
 
+
 # ファイル名に使用できない文字（ARIB外字）を変換
 def replace_title(title):
     title = title.replace("\ue180", "[デ]")
@@ -511,7 +513,7 @@ def get_content_data(ip_addr, playing_content_id):
             if not ret:
                 logger.info(f"tweetに失敗しました。対象: {title}")
             logger.info(
-                f"エラー：「{item["channelName"]}」は定義されていないチャンネルのため、空ファイルを作成します。"
+                f'エラー：「{item["channelName"]}」は定義されていないチャンネルのため、空ファイルを作成します。'
             )
             logger.info(f"ファイル名:{base_file}.xml")
 
@@ -545,26 +547,6 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
             logger.error("エラー：ニコニコ実況過去ログAPIのサイトから取得できません。 503 Service Unavailable")
             return False
 
-    # # 過去ログAPIにログがないときは避難所から取得
-    # if line_count < 1 and 1718000400 <= start_unixtime:
-    #     lines = []
-    #     try:
-    #         nx_kako_log = NxKakoLog()
-    #         # NX-Jikkyoからの取得処理
-    #         logger.info("ニコニコ実況避難所からログを取得中")
-    #         tmp_lines = nx_kako_log.get_comment(jkid, start_unixtime, end_unixtime)
-    #         line_count = len(tmp_lines)
-    #         if line_count < 1:
-    #             logger.info("エラー：ニコニコ実況避難所に指定された期間のログは存在しません。")
-    #         lines.append('<?xml version="1.0" encoding="UTF-8"?>' + "\n")
-    #         lines.append("<packet>" + "\n")
-    #         lines += tmp_lines
-    #         lines.append("</packet>" + "\n")
-
-    #     except Exception as e:
-    #         logger.info("エラー：ニコニコ実況避難所のAPIから取得できません。")
-    #         return False
-
     if line_count < 1:
         logger.info("エラー：指定された期間の過去ログは存在しません。")
 
@@ -593,7 +575,7 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
 
     ret = twitter_write(jk_names[jkid], start_date_time, total_minutes, title, line_count)
     if not ret:
-        logger.info("tweetに失敗しました。対象: " + title)
+        logger.info(f"postに失敗しました。対象: {title}")
 
     return True
 
@@ -654,7 +636,7 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
 
 def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title):
 
-    base_file = f"{jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}" 
+    base_file = f'{jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}'
     logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
     logfile_limit = os.path.join(kakolog_dir, f"{base_file}_limit.xml")
 
@@ -667,13 +649,13 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
             return False
     else:
         if not mode_monitoring:
-            print("ファイル名:" + base_file + ".xml")
+            print(f"ファイル名:{base_file}.xml")
 
     # mode_silentがFalseの時はコメントビュアーを起動
     if not mode_silent:
         # commenomiが存在するかどうかをチェック
         if not os.path.exists(commenomi_path):
-            logger.info("エラー：commenomiが見つからないため、終了します。" + commenomi_path)
+            logger.info(f"エラー：commenomiが見つからないため、終了します。{commenomi_path}")
             sys.exit(1)
         if rate_per_seconde > 0 and os.path.exists(logfile_limit):
             subprocess.Popen([commenomi_path, logfile_limit])
@@ -685,16 +667,31 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
 def open_jkcommentviewer(service_id):
     if mode_silent or jkcommentviewer_path is None:
         return True
-    # ライブ視聴中のチャンネルを取得する
-    jkid = get_jkid(service_id)
+    channels = {
+        "jk1": "https://live.nicovideo.jp/watch/ch2646436",  # NHK総合
+        "jk2": "https://live.nicovideo.jp/watch/ch2646437",  # NHK Eテレ
+        "jk4": "https://live.nicovideo.jp/watch/ch2646438",  # 日本テレビ
+        "jk5": "https://live.nicovideo.jp/watch/ch2646439",  # テレビ朝日
+        "jk6": "https://live.nicovideo.jp/watch/ch2646440",  # TBSテレビ
+        "jk7": "https://live.nicovideo.jp/watch/ch2646441",  # テレビ東京
+        "jk8": "https://live.nicovideo.jp/watch/ch2646442",  # フジテレビ
+        "jk9": "https://live.nicovideo.jp/watch/ch2646485",  # TOKYO MX
+        "jk101": "https://live.nicovideo.jp/watch/ch2647992",  # NHK BS
+        "jk211": "https://live.nicovideo.jp/watch/ch2646846",  # BS11
+    }
     try:
-        url = f"https://nx-jikkyo.tsukumijima.net/watch/jk{jkid}"
+        # ライブ視聴中のチャンネルを取得する
+        jkid = get_jkid(service_id)
+        print(f"jkcommentviewerで再生中のチャンネル {jkid} を開きます。")
+        url = channels.get(jkid)
+        if not url:
+            url = f"https://nx-jikkyo.tsukumijima.net/watch/{jkid}"
     except:
         logger.info("エラー：ニコニコ実況番組が見つかりません。")
         return False
     # jkcommentviewerオープン
     if not os.path.exists(jkcommentviewer_path):
-        logger.info("エラー：jkcommentviewer.exeが見つかりません。" + jkcommentviewer_path)
+        logger.info(f"エラー：jkcommentviewer.exeが見つかりません。{jkcommentviewer_path}")
         return False
     else:
         subprocess.Popen([jkcommentviewer_path, url])
@@ -713,18 +710,22 @@ def playing_nasnes():
                 sys.exit(1)  # 致命的エラー
         playing_info = json.loads(get_playing_info.text)
         try:
-            playing_content_id = playing_info["client"][0]["content"]["id"]
-            # 再生中の番組情報を取得する
-            jkid, start_date_time, end_date_time, total_minutes, title = get_content_data(ip_addr, playing_content_id)
-            # 番組終了5分以内は過去ログを取得しない
-            if datetime.datetime.timestamp(end_date_time + datetime.timedelta(minutes=5)) < datetime.datetime.timestamp(
-                (datetime.datetime.now())
-            ):
-                # commenomi用のコメント再生処理
-                ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
-                return ret
-            else:
-                pass
+            is_rec_playing = playing_info["client"][0]["purpose"] == 2  # 1:ライブ視聴 2:録画視聴 3:ムーブ
+            if is_rec_playing:
+                playing_content_id = playing_info["client"][0]["content"]["id"]
+                # 再生中の番組情報を取得する
+                jkid, start_date_time, end_date_time, total_minutes, title = get_content_data(
+                    ip_addr, playing_content_id
+                )
+                # 番組終了5分以内は過去ログを取得しない
+                if datetime.datetime.timestamp(
+                    end_date_time + datetime.timedelta(minutes=5)
+                ) < datetime.datetime.timestamp((datetime.datetime.now())):
+                    # commenomi用のコメント再生処理
+                    ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
+                    return ret
+                else:
+                    pass
         except KeyError:
             pass
 
@@ -973,17 +974,22 @@ if args.channel != "None" or args.fixrec:
     open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
     sys.exit(0)
 
-# main
-if mode_monitoring:
-    # 常駐監視モード
-    print("常駐監視モード開始 " + datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"))
-    while True:
-        playing_nasnes()
-        time.sleep(60)
-else:
-    # 通常実行
-    ret = playing_nasnes()
-    if not ret:
-        if not mode_silent:
-            logger.info("エラー：再生中のnasneの動画が見つからないため、終了します。")
-        sys.exit(1)
+
+def main():
+    if mode_monitoring:
+        # 常駐監視モード
+        print("常駐監視モード開始 " + datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"))
+        while True:
+            playing_nasnes()
+            time.sleep(60)
+    else:
+        # 通常実行
+        ret = playing_nasnes()
+        if not ret:
+            if not mode_silent:
+                logger.info("エラー：再生中のnasneの動画が見つからないため、終了します。")
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

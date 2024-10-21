@@ -5,16 +5,16 @@ rem バッチファイルのディレクトリを取得
 set "currentDir=%~dp0"
 
 if "%~1"=="" (
-    echo ファイルをこのバッチファイルにドラッグ＆ドロップしてください。
-    pause
-    exit /b
-)
-
-rem ドラッグされたファイルの名前を表示
-for %%i in (%*) do (
-    set "file=%%~i"
-    set "filename=%%~nxi"
-    echo ドラッグされたファイル名: !filename!
+    rem ファイルがドラッグされなかった場合の処理
+    :input_filename
+    set /p filename=XMLファイル名を入力してください（例: NHK総合_20240414_000946_30_レギュラー番組への道 最深日本研究～外国人博士の目～[字].xml）: 
+) else (
+    rem ドラッグされたファイルの名前を表示
+    for %%i in (%*) do (
+        set "file=%%~i"
+        set "filename=%%~nxi"
+        echo ドラッグされたファイル名: !filename!
+    )
 )
 
 :input_minutes
@@ -38,13 +38,19 @@ if "!isnum!"=="1" (
 
 :run_command
 rem ドラッグ＆ドロップされたファイルを処理
-for %%i in (%*) do (
-    set "file=%%~i"
-    set "filename=%%~nxi"
+if "%~1"=="" (
+    rem ユーザーが入力したファイルを処理
     echo Running: "%currentDir%komenasne.exe" --fixrec !minutes! "!filename!"
     "%currentDir%komenasne.exe" --fixrec !minutes! "!filename!"
+) else (
+    rem ドラッグ＆ドロップされたファイルを処理
+    for %%i in (%*) do (
+        set "file=%%~i"
+        set "filename=%%~nxi"
+        echo Running: "%currentDir%komenasne.exe" --fixrec !minutes! "!filename!"
+        "%currentDir%komenasne.exe" --fixrec !minutes! "!filename!"
+    )
 )
 
 pause
 endlocal
-exit /b
