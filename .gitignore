@@ -1,4 +1,8 @@
 src/exe
 kakolog/
-venv
+src/__pycache__/
+src/.venv/
+src/build/
+src/dist/
 komenasne.ini
+komenasne.log

@@ -1,17 +1,32 @@
-rmdir /s /q exe
-del komenasne.exe
-mkdir exe
-cd exe
-pipenv --rm
-pipenv --python 3.10.5
-pipenv shell
-REM 竊鍋ｶ壹″縺ｯ縺薙▲縺九ｉ繧ｳ繝斐��
-copy ..\requirements.txt .
-pipenv install -r requirements.txt
-pip install pyinstaller
-copy ..\komenasne.py .
-copy ..\komenasne.ico .
+@echo off
+REM 仮想環境を作成するか確認
+if not exist ".venv" (
+    echo 仮想環境を作成中...
+    python -m venv .venv
+)
+
+REM 仮想環境を有効化
+echo 仮想環境を有効化しています...
+call .venv\Scripts\activate
+
+REM モジュールをインストール
+if exist requirements.txt (
+    echo モジュールをインストール中...
+    pip install -r requirements.txt
+) else (
+    echo requirements.txt が見つかりませんでした。処理を終了します。
+    exit /b 1
+)
+
+REM PyInstallerでEXEファイルを作成
+echo EXEファイルを作成中...
 pyinstaller komenasne.py --icon=komenasne.ico --onefile --clean
+
 move dist\komenasne.exe ..\
-pipenv --rm
+
+REM 処理完了
+echo 処理が完了しました。
 pause
+
+REM 仮想環境を無効化
+deactivate
