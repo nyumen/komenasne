@@ -89,6 +89,8 @@ jobs:
         with:
           files: artifacts/**/*
           generate_release_notes: true
+          # v3.1.0-beta.1 のようにタグへ「-」を含めると pre-release（latestにならない）
+          prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
             ## ダウンロード
             - **Windows**: `komenasne-win.zip` を展開し、フォルダ内の `komenasne.exe` を使用してください
