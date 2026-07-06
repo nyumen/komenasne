@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>komenasne web player</title>
+<style>
+  /* komeview-lite: iPad の Split View で torne と並べて使うコメントプレイヤー (SPEC §5.2) */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #000; color: #e5e7eb;
+    font-family: -apple-system, "Hiragino Sans", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    touch-action: manipulation; /* ダブルタップズーム抑止 */
+  }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+  /* コメント描画エリア */
+  #stage { position: relative; flex: 1; min-height: 0; background: #000; }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #status {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    max-width: 92%; padding: 6px 14px; border-radius: 8px;
+    background: rgba(30,41,59,.9); font-size: 13px; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #status.hidden { display: none; }
+
+  /* 操作パネル */
+  #panel { flex: none; background: #14161c; padding: 6px 10px 10px; }
+
+  /* シークバー */
+  #seekwrap { position: relative; height: 30px; margin-bottom: 6px; }
+  #seektrack {
+    position: absolute; left: 0; right: 0; bottom: 8px; height: 10px;
+    background: rgba(255,255,255,.18); border-radius: 5px;
+  }
+  #seekplayed { position: absolute; left: 0; top: 0; bottom: 0; background: #3b82f6; border-radius: 5px; }
+  #seekhead {
+    position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; transform: translate(-50%, -50%);
+  }
+  .marker-dot {
+    position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+    transform: translate(-50%, -50%); border: 1px solid rgba(0,0,0,.4);
+  }
+  .marker-label {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 700; color: rgba(255,255,255,.85);
+    background: rgba(0,0,0,.4); padding: 0 4px; border-radius: 3px;
+    pointer-events: none; white-space: nowrap;
+  }
+
+  /* ボタン列 */
+  .row { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  button {
+    min-width: 52px; height: 40px; padding: 0 12px;
+    border: none; border-radius: 8px;
+    background: rgba(255,255,255,.12); color: #e5e7eb;
+    font-size: 16px; font-weight: 600;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:active { background: rgba(255,255,255,.3); }
+  button:disabled { opacity: .35; }
+  #btnPlay { min-width: 64px; font-size: 20px; }
+  #btnFetch { background: #2563eb; }
+  .marker-btn { min-width: 46px; }
+  #right { margin-left: auto; text-align: right; white-space: nowrap; }
+  #timeDisp { font-family: ui-monospace, monospace; font-size: 14px; }
+  #stats { font-size: 11px; color: #9ca3af; line-height: 1.3; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="canvas" width="1920" height="1080"></canvas>
+    <div id="status">接続中…</div>
+  </div>
+  <div id="panel">
+    <div id="seekwrap">
+      <div id="seektrack">
+        <div id="seekplayed"></div>
+        <div id="markers"></div>
+        <div id="seekhead"></div>
+      </div>
+    </div>
+    <div class="row" id="markerRow" style="display:none"></div>
+    <div class="row">
+      <button id="btnFetch">取得</button>
+      <button id="btnPlay">▶</button>
+      <button id="btnB15">−15</button>
+      <button id="btnB1">−1</button>
+      <button id="btnF1">＋1</button>
+      <button id="btnF15">＋15</button>
+      <button id="btnSpeed">1x</button>
+      <span id="right">
+        <div id="timeDisp">--:-- / --:--</div>
+        <div id="stats"></div>
+      </span>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/niconicomments.js"></script>
+<script>
+"use strict";
+
+// ───────────────────────── マーカー定義（komeview の markers.ts 移植）
+const MARKERS = [
+  { key: "start", label: "ｷﾀ", color: "#22d3ee",
+    regexp: /^(ｷﾀ|キタ)[ｰー━].*[!！]$|^きたあ{0,}$|^(始|はじ)まっ?た|hjmt|ｈｊｍｔ$/i },
+  { key: "op",    label: "OP", color: "#a78bfa", regexp: /^出?(OP|ＯＰ)$/i },
+  { key: "aPart", label: "A",  color: "#34d399", regexp: /^(A|Ａ)$/ },
+  { key: "bPart", label: "B",  color: "#fbbf24", regexp: /^(B|Ｂ)$/ },
+  { key: "ed",    label: "ED", color: "#f87171", regexp: /^(ED|ＥＤ)$/i },
+  { key: "cPart", label: "C",  color: "#f472b6", regexp: /^(C|Ｃ)$/ },
+];
+const CLUSTER_WINDOW_MS = 8000;
+const MIN_SEPARATION_MS = 5 * 60 * 1000;
+
+// 複数回検出（8秒クラスタ → 件数順採用 → 5分近接統合 → 閾値）
+function findMarkerOccurrences(comments) {
+  const sorted = comments.map(c => ({ vposMs: c.vpos * 10, body: c.content }))
+                         .sort((a, b) => a.vposMs - b.vposMs);
+  if (!sorted.length) return [];
+  const result = [];
+  for (const { key, regexp } of MARKERS) {
+    const matched = sorted.filter(({ body }) => regexp.test(body));
+    if (!matched.length) continue;
+    const clusters = [];
+    for (let i = 0; i < matched.length; i++) {
+      let j = i;
+      while (j + 1 < matched.length && matched[j + 1].vposMs - matched[i].vposMs <= CLUSTER_WINDOW_MS) j++;
+      const adjust = Math.trunc((matched[j].vposMs - matched[i].vposMs) / 10);
+      clusters.push({ vposMs: matched[i].vposMs + adjust, count: j - i + 1 });
+    }
+    const accepted = [];
+    for (const c of clusters.sort((a, b) => b.count - a.count || a.vposMs - b.vposMs)) {
+      if (accepted.some(a => Math.abs(a.vposMs - c.vposMs) < MIN_SEPARATION_MS)) continue;
+      accepted.push(c);
+    }
+    if (!accepted.length) continue;
+    const best = accepted[0].count;
+    for (let i = 0; i < accepted.length; i++) {
+      const c = accepted[i];
+      if (i === 0 || (c.count >= 2 && c.count >= best * 0.2)) result.push({ key, vposMs: c.vposMs });
+    }
+  }
+  return result.sort((a, b) => a.vposMs - b.vposMs);
+}
+
+// ───────────────────────── XML → formatted コメント（komeview の xml.ts 移植）
+function parseNicoXML(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  const chats = doc.getElementsByTagName("chat");
+  const comments = [];
+  for (const chat of chats) {
+    const content = chat.textContent || "";
+    if (!content) continue;
+    comments.push({
+      id: parseInt(chat.getAttribute("no") || "0", 10),
+      vpos: parseInt(chat.getAttribute("vpos") || "0", 10),
+      content,
+      date: parseInt(chat.getAttribute("date") || "0", 10),
+      date_usec: 0,
+      owner: false,
+      premium: parseInt(chat.getAttribute("premium") || "0", 10) > 0,
+      mail: (chat.getAttribute("mail") || "").split(/\s+/).filter(Boolean),
+      user_id: parseInt(chat.getAttribute("user_id") || "0", 10) || 0,
+      layer: -1,
+      is_my_post: false,
+    });
+  }
+  return comments.sort((a, b) => a.vpos - b.vpos);
+}
+
+// ───────────────────────── プレイヤー本体
+const $ = id => document.getElementById(id);
+const SPEEDS = [1.0, 1.25, 1.5, 1.75, 2.0];
+const LAZY_THRESHOLD = 30000;
+
+let nc = null;              // NiconiComments インスタンス
+let comments = [];
+let markers = [];
+let duration = 0;           // 秒
+let speedIdx = 0;
+// 仮想クロック（komeview と同じ手動同期モデル）
+const clock = { baseTime: 0, baseTs: 0, playing: false, rate: 1.0 };
+let lastDrawnVpos = -1;
+
+const getTime = () => clock.playing
+  ? clock.baseTime + (performance.now() - clock.baseTs) / 1000 * clock.rate
+  : clock.baseTime;
+
+function seekTo(t) {
+  clock.baseTime = Math.min(duration, Math.max(0, t));
+  clock.baseTs = performance.now();
+}
+function play() {
+  if (!comments.length) return;
+  clock.baseTime = getTime(); clock.baseTs = performance.now(); clock.playing = true;
+  $("btnPlay").textContent = "⏸";
+}
+function pause() {
+  clock.baseTime = getTime(); clock.playing = false;
+  $("btnPlay").textContent = "▶";
+}
+
+function fmt(sec) {
+  sec = Math.max(0, sec | 0);
+  const h = (sec / 3600) | 0, m = ((sec % 3600) / 60) | 0, s = sec % 60 | 0;
+  const p = n => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+
+function setStatus(msg, autoHideMs) {
+  const el = $("status");
+  if (!msg) { el.classList.add("hidden"); return; }
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  if (autoHideMs) setTimeout(() => el.classList.add("hidden"), autoHideMs);
+}
+
+// 描画ループ
+function loop() {
+  if (nc) {
+    const v = Math.floor(getTime() * 100);
+    if (v !== lastDrawnVpos) { lastDrawnVpos = v; nc.drawCanvas(v); }
+  }
+  const t = getTime();
+  if (clock.playing && t >= duration) pause();
+  $("timeDisp").textContent = `${fmt(t)} / ${fmt(duration)}`;
+  const ratio = duration > 0 ? Math.min(1, t / duration) : 0;
+  $("seekplayed").style.width = (ratio * 100) + "%";
+  $("seekhead").style.left = (ratio * 100) + "%";
+  requestAnimationFrame(loop);
+}
+
+// コメント統計（komeview の density.ts 相当: max は60秒スライディング窓）
+function renderStats() {
+  const total = comments.length;
+  const sec = comments.map(c => c.vpos / 100);
+  let maxPerMin = 0;
+  for (let hi = 0, lo = 0; hi < sec.length; hi++) {
+    while (sec[hi] - sec[lo] > 60) lo++;
+    if (hi - lo + 1 > maxPerMin) maxPerMin = hi - lo + 1;
+  }
+  const avg = duration > 0 ? Math.round(total / (duration / 60)) : 0;
+  $("stats").innerHTML =
+    `total ${total.toLocaleString("ja-JP")} コメ<br>` +
+    `max ${maxPerMin.toLocaleString("ja-JP")} avg ${avg.toLocaleString("ja-JP")} コメ/分`;
+}
+
+// コメントのロード
+function loadComments(title, xmlText) {
+  comments = parseNicoXML(xmlText);
+  if (!comments.length) { setStatus("コメントが見つかりませんでした"); return; }
+  duration = Math.ceil(comments[comments.length - 1].vpos / 100) + 10;
+  markers = findMarkerOccurrences(comments);
+  renderStats();
+
+  if (nc) { nc.clear(); nc.destroy(); nc = null; }
+  nc = new NiconiComments($("canvas"), comments, {
+    format: "formatted", mode: "html5", lazy: comments.length > LAZY_THRESHOLD,
+  });
+  lastDrawnVpos = -1;
+  renderMarkers();
+  seekTo(0);
+  play();
+  setStatus(`${title}（${comments.length.toLocaleString()}コメント）`, 5000);
+}
+
+// マーカーの点とボタンを描画
+function renderMarkers() {
+  const dots = $("markers");
+  dots.innerHTML = "";
+  const row = $("markerRow");
+  row.innerHTML = "";
+  row.style.display = markers.length ? "flex" : "none";
+
+  for (const m of markers) {
+    const def = MARKERS.find(d => d.key === m.key);
+    const dot = document.createElement("div");
+    dot.className = "marker-dot";
+    dot.style.left = (m.vposMs / 1000 / duration * 100) + "%";
+    dot.style.background = def.color;
+    const lb = document.createElement("span");
+    lb.className = "marker-label";
+    lb.textContent = def.label;
+    dot.appendChild(lb);
+    dot.addEventListener("pointerdown", e => { e.stopPropagation(); seekTo(m.vposMs / 1000); });
+    dots.appendChild(dot);
+  }
+
+  // 種類ごとのジャンプボタン（現在位置より後ろの直近へ、無ければ先頭へ周回）
+  const kinds = [...new Set(markers.map(m => m.key))];
+  for (const key of kinds) {
+    const def = MARKERS.find(d => d.key === key);
+    const btn = document.createElement("button");
+    btn.className = "marker-btn";
+    btn.textContent = def.label;
+    btn.style.borderBottom = `3px solid ${def.color}`;
+    btn.addEventListener("click", () => {
+      const list = markers.filter(m => m.key === key);
+      const t = getTime();
+      const next = list.find(m => m.vposMs / 1000 > t + 0.5) || list[0];
+      seekTo(next.vposMs / 1000);
+    });
+    row.appendChild(btn);
+  }
+}
+
+// /api/play を叩いてロード（アクセス時キック / SPEC §5.1）
+async function fetchAndLoad() {
+  const btn = $("btnFetch");
+  btn.disabled = true;
+  setStatus("nasneの再生状況を確認してコメントを取得中…（最大1分ほどかかります）");
+  try {
+    const res = await fetch("/api/play");
+    const data = await res.json();
+    if (data.error) { setStatus(data.error); return; }
+    loadComments(data.title, data.xml);
+  } catch (e) {
+    setStatus("サーバに接続できませんでした: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ───────────────────────── UI イベント
+$("btnFetch").addEventListener("click", fetchAndLoad);
+$("btnPlay").addEventListener("click", () => clock.playing ? pause() : play());
+$("btnB15").addEventListener("click", () => seekTo(getTime() - 15));
+$("btnB1").addEventListener("click", () => seekTo(getTime() - 1));
+$("btnF1").addEventListener("click", () => seekTo(getTime() + 1));
+$("btnF15").addEventListener("click", () => seekTo(getTime() + 15));
+$("btnSpeed").addEventListener("click", () => {
+  speedIdx = (speedIdx + 1) % SPEEDS.length;
+  const now = getTime();
+  clock.rate = SPEEDS[speedIdx];
+  seekTo(now); // 基準点を更新
+  $("btnSpeed").textContent = SPEEDS[speedIdx] + "x";
+});
+
+// シークバー（タッチ/ドラッグ）
+{
+  const wrap = $("seekwrap");
+  let dragging = false;
+  const timeFromX = x => {
+    const r = $("seektrack").getBoundingClientRect();
+    return Math.min(1, Math.max(0, (x - r.left) / r.width)) * duration;
+  };
+  wrap.addEventListener("pointerdown", e => {
+    if (!duration) return;
+    dragging = true;
+    wrap.setPointerCapture(e.pointerId);
+    seekTo(timeFromX(e.clientX));
+  });
+  wrap.addEventListener("pointermove", e => { if (dragging) seekTo(timeFromX(e.clientX)); });
+  wrap.addEventListener("pointerup", () => { dragging = false; });
+}
+
+// 起動時に1回自動でキック
+requestAnimationFrame(loop);
+fetchAndLoad();
+</script>
+</body>
+</html>

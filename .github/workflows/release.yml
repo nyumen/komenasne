@@ -70,6 +70,7 @@ jobs:
       - name: Bundle support files
         run: |
           cp komenasne.ini.example post_template.txt README.md dist/komenasne/
+          cp -R web dist/komenasne/web
           mkdir -p dist/komenasne/kakolog
           cd dist && zip -qry ../komenasne-mac.zip komenasne
       - uses: actions/upload-artifact@v4

@@ -69,6 +69,17 @@ nasneの再探索（IPが変わった時に実行）: komenasne.exe --discover
 ファイル名から時間変更で再取得: komenasne.exe --fixrec 30 "TOKYO MX_20230210_001202_30_お兄ちゃんはおしまい！ ＃６.xml"
 ```
 
+## Webプレイヤー（iPad等のブラウザでコメント再生）
+`komenasne --serve` でWebプレイヤーサーバが起動します（デフォルト ポート8765）。
+iPad の torne アプリで nasne の動画を再生しながら、Split View のブラウザでコメントを流せます。
+
+1. 自宅PCで `komenasne.exe --serve` を実行
+2. iPad 等のブラウザで `http://<PCのアドレス>:8765/` を開く（外出先からは [Tailscale](https://tailscale.com/) 経由を推奨）
+3. ページを開くと自動で再生中の番組のコメントを取得して再生開始。「取得」ボタンで再取得
+4. torne 側の再生開始に合わせて「ｷﾀ」等のマーカーボタンで頭出し
+
+※ 認証機能はありません。LAN / Tailscale の閉域網の中だけで使い、インターネットに直接公開しないでください。
+
 ## 付属バッチファイル（Windows）
 - **komenasne_task_setup.bat** — 5分ごとのバックグラウンド記録タスクを登録/解除します。
   登録すると、外出先から torne アプリ等で再生した場合も含め、nasneで再生した番組の実況コメントXMLが
