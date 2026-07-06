@@ -403,11 +403,19 @@ def playing_nasnes():
                 if datetime.timestamp(
                     end_date_time + timedelta(minutes=5)
                 ) < datetime.timestamp((datetime.now())):
-                    # commenomi用のコメント再生処理
+                    # komeview用のコメント再生処理
                     ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
-                    return ret
+                    if not ret:
+                        # 取得失敗の詳細は直前でログ出力済み。
+                        # 「nasneの動画が見つからない」という紛らわしいメッセージを出さずに終える
+                        if mode_monitoring:
+                            return True  # 常駐モードは次の周期で再試行
+                        sys.exit(1)
+                    return True
                 else:
-                    pass
+                    if not mode_monitoring:
+                        logger.info(f"番組終了から5分間は過去ログを取得できません。しばらく待ってから再実行してください。（{title}）")
+                        sys.exit(1)
         except KeyError:
             pass
 
