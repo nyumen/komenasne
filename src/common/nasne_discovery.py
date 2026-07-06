@@ -1,7 +1,12 @@
 # nasne の自動発見（SSDP / UPnP M-SEARCH）とIPキャッシュ (SPEC §2.4)
 #
-# - LAN に M-SEARCH を投げ、応答した MediaServer のデバイス記述XMLを取得し
-#   modelName が nasne のものだけを採用する（実機検証済み）
+# 探索方式（SONY製・バッファロー製の両方で実機検証済み）:
+#   1. nasne 固有のサービス urn:schemas-sony-com:service:X_Telepathy:1 で M-SEARCH
+#      ※ MediaServer:1 だとバッファロー製nasne（スタンバイ中にDLNA機能が寝ている個体）が
+#        応答しないため使わない
+#   2. 応答したIPに対し nasne API (http://<ip>:64210/status/boxNameGet) を並列で叩き、
+#      応答したものだけを nasne と確定（名前もここから取得）
+#
 # - 発見結果は nasne_ips.cache (JSON) に保存し、通常起動時はキャッシュを使う
 # - 探索を行うのは「初回起動時（ini手動指定もキャッシュも無い）」と「--discover 指定時」のみ
 import json
@@ -11,9 +16,11 @@ import socket
 import sys
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 SSDP_ADDR = ("239.255.255.250", 1900)
-SSDP_ST = "urn:schemas-upnp-org:device:MediaServer:1"
+# nasne 固有の UPnP サービス（SONY製・バッファロー製とも応答する）
+SSDP_ST_NASNE = "urn:schemas-sony-com:service:X_Telepathy:1"
 CACHE_FILENAME = "nasne_ips.cache"
 
 
@@ -47,29 +54,14 @@ def save_cached_ips(ips):
         return False
 
 
-def _fetch_device_info(location):
-    """デバイス記述XMLから (modelName, friendlyName) を取得"""
-    try:
-        with urllib.request.urlopen(location, timeout=3) as r:
-            xml = r.read().decode(errors="replace")
-    except Exception:
-        return None, None
-    model = re.search(r"<modelName>([^<]+)</modelName>", xml)
-    friendly = re.search(r"<friendlyName>([^<]+)</friendlyName>", xml)
-    return (
-        model.group(1) if model else None,
-        friendly.group(1) if friendly else None,
-    )
-
-
-def discover_nasnes(wait_sec=3.0):
-    """SSDP で LAN 内の nasne を探索し、[(ip, friendlyName), ...] を IP 順で返す"""
+def _msearch_ips(st, wait_sec):
+    """SSDP M-SEARCH を投げ、応答したIPの集合を返す"""
     msg = (
         "M-SEARCH * HTTP/1.1\r\n"
         f"HOST: {SSDP_ADDR[0]}:{SSDP_ADDR[1]}\r\n"
         'MAN: "ssdp:discover"\r\n'
         "MX: 2\r\n"
-        f"ST: {SSDP_ST}\r\n"
+        f"ST: {st}\r\n"
         "\r\n"
     ).encode()
 
@@ -85,28 +77,44 @@ def discover_nasnes(wait_sec=3.0):
         try:
             sock.sendto(msg, SSDP_ADDR)
         except OSError:
-            return []
+            return set()
         time.sleep(0.1)
 
-    locations = {}  # ip -> LOCATION URL
+    ips = set()
     try:
         while True:
-            data, addr = sock.recvfrom(8192)
-            text = data.decode(errors="replace")
-            m = re.search(r"(?im)^LOCATION:\s*(\S+)", text)
-            if m and addr[0] not in locations:
-                locations[addr[0]] = m.group(1)
+            _, addr = sock.recvfrom(8192)
+            ips.add(addr[0])
     except socket.timeout:
         pass
     finally:
         sock.close()
+    return ips
 
-    nasnes = []
-    for ip, location in locations.items():
-        model, friendly = _fetch_device_info(location)
-        if model and "nasne" in model.lower():
-            nasnes.append((ip, friendly or "nasne"))
 
-    # IPアドレス順で安定させる
-    nasnes.sort(key=lambda x: tuple(int(o) for o in x[0].split(".")))
-    return nasnes
+def _probe_nasne(ip):
+    """nasne API で確定判定し、本体名を返す。nasne でなければ None"""
+    try:
+        with urllib.request.urlopen(f"http://{ip}:64210/status/boxNameGet", timeout=2) as r:
+            data = json.loads(r.read().decode(errors="replace"))
+        if data.get("errorcode") == 0:
+            return data.get("name") or "nasne"
+    except Exception:
+        pass
+    return None
+
+
+def discover_nasnes(wait_sec=3.0):
+    """SSDP で LAN 内の nasne を探索し、[(ip, name), ...] を IP 順で返す"""
+    candidates = _msearch_ips(SSDP_ST_NASNE, wait_sec)
+    if not candidates:
+        # 保険: nasne固有STに応答しないファームウェア向けに全機器から拾う
+        candidates = _msearch_ips("ssdp:all", wait_sec)
+    if not candidates:
+        return []
+
+    ordered = sorted(candidates, key=lambda ip: tuple(int(o) for o in ip.split(".")))
+    with ThreadPoolExecutor(max_workers=len(ordered)) as executor:
+        names = list(executor.map(_probe_nasne, ordered))
+
+    return [(ip, name) for ip, name in zip(ordered, names) if name is not None]
