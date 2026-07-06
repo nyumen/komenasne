@@ -1,8 +1,15 @@
 src/exe
 kakolog/
-src/__pycache__/
-src/.venv/
-src/build/
-src/dist/
+__pycache__/
+.venv/
+build/
+dist/
+*.spec
+# ローカル設定ファイル（komenasne.ini.example をコピーして各自作成）
 komenasne.ini
+src/komenasne.ini
 komenasne.log
+post_err.log
+.DS_Store
+*.egg-info/
+reclist.txt

@@ -1,0 +1,105 @@
+name: Release
+
+# v で始まるタグ（例: v3.0.0）を push するとビルドして Release に添付する
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install .
+          pip install pyinstaller
+      - name: Build (onedir)
+        # 単一exeより onedir + zip の方が Windows Defender の誤検知率が低い（SPEC §2.6）
+        run: >
+          pyinstaller src/komenasne.py
+          --name komenasne
+          --paths src
+          --icon src/komenasne.ico
+          --clean --noconfirm
+      - name: Bundle support files
+        shell: pwsh
+        run: |
+          Copy-Item komenasne.ini.example dist/komenasne/
+          Copy-Item post_template.txt dist/komenasne/
+          Copy-Item komenasne.bat dist/komenasne/
+          Copy-Item komenasne_fixrec.bat dist/komenasne/
+          Copy-Item README.md dist/komenasne/
+          New-Item -ItemType Directory -Force dist/komenasne/kakolog | Out-Null
+          Compress-Archive -Path dist/komenasne -DestinationPath komenasne-win.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win
+          path: komenasne-win.zip
+
+  build-mac:
+    # macos-latest は Apple Silicon (arm64)
+    # nasne API は LAN 照会なので、PC TV Plus / PS5(torne) での再生を Mac 側から検出して
+    # Mac の komeview と連動できる
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install .
+          pip install pyinstaller
+      - name: Build (onedir)
+        run: >
+          pyinstaller src/komenasne.py
+          --name komenasne
+          --paths src
+          --clean --noconfirm
+      - name: Bundle support files
+        run: |
+          cp komenasne.ini.example post_template.txt README.md dist/komenasne/
+          mkdir -p dist/komenasne/kakolog
+          cd dist && zip -qry ../komenasne-mac.zip komenasne
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: komenasne-mac.zip
+
+  release:
+    needs: [build-win, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          body: |
+            ## ダウンロード
+            - **Windows**: `komenasne-win.zip` を展開し、フォルダ内の `komenasne.exe` を使用してください
+              （`komenasne.ini.example` を `komenasne.ini` にリネームして設定）
+            - **macOS (Apple Silicon)**: `komenasne-mac.zip` を展開し、ターミナルからフォルダ内の `komenasne` を実行してください
+              （PC TV Plus や PS5(torne) で再生中の番組を検出して、Mac の komeview と連動できます）
+
+            ### Windows Defender / SmartScreen の警告が出る場合
+            署名をしていないための誤検知です。「詳細情報」→「実行」で進めるか、
+            フォルダをスキャン対象外に設定してください。
+
+            ### macOS で「開発元を確認できない」等のブロックが出る場合
+            ターミナルで次を一度だけ実行してください:
+            ```sh
+            xattr -cr /path/to/komenasne
+            ```
+
+            ---
