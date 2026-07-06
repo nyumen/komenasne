@@ -490,18 +490,16 @@ except KeyError:
 
 try:
     kakolog_dir = Path(ini["LOG"]["kakolog_dir"])
-    if not Path(kakolog_dir).is_absolute():
-        # 相対パスの時
+    if not kakolog_dir.is_absolute():
+        # 相対パスの時は exe/スクリプトのある場所を基準にする
         kakolog_dir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), kakolog_dir)
 
-    # フォルダが存在するかどうかをチェック
-    if not os.path.exists(kakolog_dir):
-        logger.info(f"エラー：ログフォルダが見つからないため、終了します。{kakolog_dir}")
-        exit(1)
+    # フォルダが無ければ作成する
+    os.makedirs(kakolog_dir, exist_ok=True)
 
 except KeyError:
-    logger.info(f"iniファイルにkakolog_dirを設定してください")
-    exit(1)
+    logger.info("iniファイルにkakolog_dirを設定してください")
+    sys.exit(1)
 
 try:
     jkcommentviewer_path = ini["PLAYER"]["jkcommentviewer_path"]

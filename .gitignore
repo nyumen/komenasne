@@ -5,7 +5,9 @@ __pycache__/
 build/
 dist/
 *.spec
+# ローカル設定ファイル（komenasne.ini.example をコピーして各自作成）
 komenasne.ini
+src/komenasne.ini
 komenasne.log
 post_err.log
 .DS_Store

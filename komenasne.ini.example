@@ -12,8 +12,8 @@ komeview_path = C:\Users\yourname\AppData\Local\Programs\komeview\komeview.exe
 jkcommentviewer_path =
 
 [LOG]
-# 取得したコメントの保存フォルダ
-kakolog_dir = .\kakolog\
+# 取得したコメントの保存フォルダ（無ければ自動作成されます）
+kakolog_dir = ./kakolog/
 
 [BLUESKY]
 # 視聴記録をBlueskyに投稿する場合のみ設定（省略可）
