@@ -588,7 +588,7 @@ if args.discover:
     print("nasne を探索しています…（数秒かかります）")
     found = discover_nasnes()
     if not found:
-        print("nasne が見つかりませんでした。同じネットワークに居るか、ファイアウォールの設定を確認してください。")
+        print("nasne が見つかりませんでした。同じネットワークにいるか、ファイアウォールの設定を確認してください。")
         sys.exit(1)
     for ip, name in found:
         print(f"  {name}: {ip}")
