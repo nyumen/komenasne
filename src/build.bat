@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 REM 仮想環境を作成するか確認
 if not exist ".venv" (
     echo 仮想環境を作成中...
@@ -20,7 +21,8 @@ if exist requirements.txt (
 
 REM PyInstallerでEXEファイルを作成
 echo EXEファイルを作成中...
-pyinstaller komenasne.py --icon=komenasne.ico --onefile --clean
+pip install pyinstaller
+pyinstaller komenasne.py --paths=. --icon=komenasne.ico --onefile --clean 
 
 move dist\komenasne.exe ..\
 

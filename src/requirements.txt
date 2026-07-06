@@ -1,6 +1,5 @@
 ﻿requests==2.31.0
 python-dateutil==2.8.2
-beautifulsoup4==4.12.2
 configparser==5.3.0
-tweepy==4.12.1
+tweepy==4.15.0
 pytz==2024.1
