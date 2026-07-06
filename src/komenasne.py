@@ -431,6 +431,104 @@ def playing_nasnes():
             pass
     return False
 
+# ───────────────────────────────────────────────
+# Webプレイヤー / --serve モード（SPEC §5）
+# ───────────────────────────────────────────────
+def api_play_payload():
+    """キックAPIの本体。再生中の録画の過去ログを取得して dict で返す。"""
+    with ThreadPoolExecutor(max_workers=max(len(nasne_ips), 1)) as executor:
+        statuses = list(executor.map(query_nasne_status, nasne_ips))
+
+    if all(s is None for s in statuses):
+        return {"error": f"nasneが見つかりません。（照会先: {', '.join(nasne_ips)}）"}
+
+    live_found = False
+    for ip_addr, playing_info in zip(nasne_ips, statuses):
+        if playing_info is None:
+            continue
+        try:
+            if playing_info["client"][0]["purpose"] == 2:  # 録画視聴
+                playing_content_id = playing_info["client"][0]["content"]["id"]
+                jkid, start_date_time, end_date_time, total_minutes, title = get_content_data(
+                    ip_addr, playing_content_id
+                )
+                if not jkid:
+                    return {"error": f"未対応チャンネルのため取得できません（{title}）"}
+                if datetime.timestamp(end_date_time + timedelta(minutes=5)) >= datetime.timestamp(datetime.now()):
+                    return {"error": "番組終了から5分間は過去ログを取得できません。しばらく待ってから再取得してください。"}
+
+                base_file = (
+                    f'{ChannelList.jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}'
+                )
+                logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
+                if not os.path.exists(logfile):
+                    ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile)
+                    if not ret:
+                        return {"error": "ニコニコ実況過去ログAPIから取得できませんでした。"}
+                with open(logfile, "r", encoding="utf-8") as f:
+                    xml = f.read()
+                return {"title": base_file, "filename": f"{base_file}.xml", "xml": xml}
+        except KeyError:
+            pass
+        try:
+            playing_info["client"][0]["liveInfo"]["serviceId"]
+            live_found = True
+        except KeyError:
+            pass
+
+    if live_found:
+        return {"error": "ライブ視聴中です。Webプレイヤーは録画再生のみ対応しています。"}
+    return {"error": "再生中の録画が見つかりません。nasneで録画を再生してから「取得」を押してください。"}
+
+
+def run_server(port):
+    """Webプレイヤーの配信とキックAPI（標準ライブラリのみ / SPEC §5.1）"""
+    import http.server
+    from urllib.parse import urlparse
+
+    app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    web_dir = None
+    for cand in (os.path.join(app_dir, "web"), os.path.join(app_dir, "..", "web")):
+        if os.path.isdir(cand):
+            web_dir = os.path.abspath(cand)
+            break
+    if web_dir is None:
+        logger.info("エラー：web フォルダが見つかりません。")
+        sys.exit(1)
+
+    class KomeHandler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=web_dir, **kw)
+
+        def do_GET(self):
+            parsed = urlparse(self.path)
+            if parsed.path == "/api/play":
+                try:
+                    payload = api_play_payload()
+                except Exception as e:  # 想定外エラーでもサーバは落とさない
+                    payload = {"error": f"サーバ内部エラー: {e}"}
+                body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                super().do_GET()
+
+        def log_message(self, format, *args):
+            pass  # アクセスログは出さない
+
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", port), KomeHandler)
+    print(f"Webプレイヤーを起動しました: http://localhost:{port}/")
+    print("iPad等からは Tailscale のこのPCのアドレス:ポートでアクセスしてください。Ctrl+C で終了します。")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n終了します。")
+
+
 def get_rec_list(ip_addr):
     """録画済みリストを、再生時に生成されるXMLファイル名と同じ形式で返す（--reclist 用）"""
     results = []
@@ -537,6 +635,7 @@ usage_message = """直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH
 nasneの再探索（IPが変わった時に実行）: komenasne.exe --discover
 録画失敗リストの表示: komenasne.exe --recerror [絞り込みキーワード]
 録画済みリストをreclist.txtに書き出し: komenasne.exe --reclist [絞り込みキーワード]
+Webプレイヤーサーバを起動（iPad等のブラウザ用）: komenasne.exe --serve [ポート番号(省略時8765)]
 
 チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定
 """
@@ -550,7 +649,8 @@ parser.add_argument("channel", nargs="?", default="None")
 parser.add_argument("date_time", nargs="?", default=0)
 parser.add_argument("total_minutes", type=int, nargs="?", default=0)
 parser.add_argument("title", nargs="?", default="タイトル不明")
-parser.add_argument("--discover", action="store_true")  # nasneを再探索してキャッシュを更新
+parser.add_argument("--discover", action="store_true")  # nasneを再探索してiniを更新
+parser.add_argument("--serve", type=int, nargs="?", const=8765, default=None)  # Webプレイヤーサーバ起動
 parser.add_argument("--mode_silent", action="store_true")
 parser.add_argument("--mode_monitoring", action="store_true")
 parser.add_argument("--fixrec", nargs=2)
@@ -622,6 +722,11 @@ if not direct_mode:
             print("発見: " + ", ".join(f"{name}={ip}" for ip, name in found) + " → komenasne.ini に反映しました。")
         else:
             logger.info(f"エラー：komenasne.ini への書き込みに失敗しました。{ini_path}")
+
+# Webプレイヤーサーバ（SPEC §5）
+if args.serve:
+    run_server(args.serve)
+    sys.exit(0)
 
 # 録画失敗リスト
 if args.recerror:
