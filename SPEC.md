@@ -88,8 +88,10 @@ IP 変更のたびに ini を編集させない。
 
 ### 2.6 GitHub Actions によるビルド・リリース
 komeview と同じタグ駆動のリリースフローにする。
-- `v*` タグの push → `windows-latest` ランナーで PyInstaller ビルド → Release に添付
-- **配布形式は onedir（フォルダ形式）+ zip**（`komenasne-win.zip`）。単一 exe より Windows Defender の誤検知率が下がるため。
+- `v*` タグの push → PyInstaller ビルド → Release に添付
+- **Windows**（`windows-latest`）: **onedir（フォルダ形式）+ zip**（`komenasne-win.zip`）。単一 exe より Windows Defender の誤検知率が下がるため。
+- **macOS**（`macos-latest` / arm64）: onedir + zip（`komenasne-mac.zip`）。
+  nasne API は LAN 照会のため、**PC TV Plus / PS5(torne) で再生中の番組を Mac 側の komenasne が検出して Mac の komeview と連動できる**（実機検証済み）。
 - リポジトリに直接コミットされている `komenasne.exe` / `komenasne.zip` は削除し、配布は Releases に一本化。
 - リリースノートに Defender 誤検知時の対処を自動記載（komeview の release.yml と同様の body 指定）。
 

@@ -6,6 +6,7 @@ ip =
 
 [PLAYER]
 # komeview のパスを設定 (https://github.com/nyumen/komeview)
+# macの場合の例: /Applications/komeview.app/Contents/MacOS/komeview
 komeview_path = C:\Users\yourname\AppData\Local\Programs\komeview\komeview.exe
 # jkcommentviewer.exe のパスを設定（ライブ視聴連動を使う場合のみ・省略可）
 jkcommentviewer_path =

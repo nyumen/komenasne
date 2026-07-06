@@ -11,11 +11,14 @@ nasneの動画再生と連動して、ニコニコ実況の過去ログコメン
 [komenasneでトルネっぽく実況コメント付きでnasneの動画を再生させる](https://note.com/kamm/n/n8a519502718c)*
 
 ## 動作に必要な環境
-- nasne
-- Windows環境
-- PC TV Plus
+- nasne（SONY製・バッファロー製どちらも対応）
+- Windows または macOS
+- nasneの再生環境（PC TV Plus / PS5・PS4のtorne など）
 - [komeview](https://github.com/nyumen/komeview/releases)
 - jkcommentviewer（任意）
+
+※ nasneの状態はネットワーク越しに取得するため、**再生している機器と komenasne を動かす機器は別でも構いません**。
+例えば PS5 の torne や Windows の PC TV Plus で再生しながら、Mac 上の komenasne + komeview でコメントを流せます。
 
 ## 説明
 - nasneの再生に連動して、komeview を起動しコメントを再生します。ライブ視聴中はチャンネルに応じた jkcommentviewer の起動に対応。
