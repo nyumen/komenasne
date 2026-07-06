@@ -36,6 +36,9 @@ jobs:
           Copy-Item post_template.txt dist/komenasne/
           Copy-Item komenasne.bat dist/komenasne/
           Copy-Item komenasne_fixrec.bat dist/komenasne/
+          Copy-Item komenasne_recerror.bat dist/komenasne/
+          Copy-Item komenasne_task_setup.bat dist/komenasne/
+          Copy-Item komenasne_silent.vbs dist/komenasne/
           Copy-Item README.md dist/komenasne/
           New-Item -ItemType Directory -Force dist/komenasne/kakolog | Out-Null
           Compress-Archive -Path dist/komenasne -DestinationPath komenasne-win.zip
