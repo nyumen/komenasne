@@ -1,8 +1,13 @@
 src/exe
 kakolog/
-src/__pycache__/
-src/.venv/
-src/build/
-src/dist/
+__pycache__/
+.venv/
+build/
+dist/
+*.spec
 komenasne.ini
 komenasne.log
+post_err.log
+nasne_ips.cache
+.DS_Store
+*.egg-info/

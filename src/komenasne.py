@@ -3,38 +3,28 @@ import requests
 import json
 from datetime import datetime, timedelta
 from dateutil.parser import parse
-from urllib.parse import quote
 import re
-import gc
 import subprocess
 import configparser
 import os
 import sys
 import time
 import math
+from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger, StreamHandler, Formatter, FileHandler, INFO
-import tweepy
 import argparse
 import pathlib
-import pytz
 from pathlib import Path
-
-# from nx_kako_log import NxKakoLog
+from zoneinfo import ZoneInfo
 
 # タイムゾーンの設定
-JST = pytz.timezone("Asia/Tokyo")
+JST = ZoneInfo("Asia/Tokyo")
 
-
-"""
-# 必要
-pip install requests
-pip install python-dateutil 
-pip install tweepy
-iniの設定
-"""
-
+# nasne API のタイムアウト（秒）。電源オフの nasne がいても待たされないよう短めにする
+NASNE_API_TIMEOUT = 2.0
 
 from common.channel_list import ChannelList
+from common.nasne_discovery import discover_nasnes, load_cached_ips, save_cached_ips
 
 
 def get_logger():
@@ -56,7 +46,8 @@ def get_logger():
 
 def get_item(ip_addr, playing_content_id):
     get_title_lists = requests.get(
-        f"http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0"
+        f"http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0",
+        timeout=10,
     )
     title_lists = json.loads(get_title_lists.text)
 
@@ -163,9 +154,9 @@ def get_content_data(ip_addr, playing_content_id):
         if not os.path.exists(logfile):
             p = pathlib.Path(logfile)
             p.touch()
-            ret = twitter_write(item["channelName"], start_date_time, total_minutes, title, 0)
+            ret = bluesky_write(item["channelName"], start_date_time, total_minutes, title, 0)
             if not ret:
-                logger.info(f"tweetに失敗しました。対象: {title}")
+                logger.info(f"postに失敗しました。対象: {title}")
             logger.info(
                 f'エラー：「{item["channelName"]}」は定義されていないチャンネルのため、空ファイルを作成します。'
             )
@@ -181,7 +172,8 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
         kakolog = requests.get(
             f"https://jikkyo.tsukumijima.net/api/kakolog/{jkid}?starttime={start_unixtime}&endtime={end_unixtime}&format=xml",
             headers=headers,
-            timeout=15,
+            # 過去ログAPIは長尺番組だと応答に時間がかかるため長めに待つ
+            timeout=60,
         )
         kakolog.raise_for_status()  # status200 チェック
     except requests.exceptions.RequestException as e:
@@ -212,10 +204,6 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
         logger.info("エラー：過去ログの書き込みに失敗しました。", e)
         return False
 
-    # メモリ解放
-    del kakolog
-    gc.collect()
-
     total_sec = int(end_unixtime - start_unixtime)
     if total_minutes > 0:
         min_count = format(line_count // total_minutes, ",")
@@ -227,33 +215,27 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
         )
     )
 
-    ret = twitter_write(ChannelList.jk_names[jkid], start_date_time, total_minutes, title, line_count)
+    ret = bluesky_write(ChannelList.jk_names[jkid], start_date_time, total_minutes, title, line_count)
     if not ret:
         logger.info(f"postに失敗しました。対象: {title}")
 
     return True
 
 
-def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
-    if consumer_key == "" or consumer_secret == "" or access_token == "" or access_token_secret == "":
+def bluesky_write(ch_name, start_date_time, total_minutes, title, line_count):
+    """Bluesky へ視聴記録を投稿する（SPEC §2.2）。未設定なら何もしない"""
+    if not bluesky_handle or not bluesky_app_password:
         return True
-    # Twitter APIを使用するための準備
-    client = tweepy.Client(
-        consumer_key=consumer_key,
-        consumer_secret=consumer_secret,
-        access_token=access_token,
-        access_token_secret=access_token_secret,
-    )
 
-    # ツイートする内容を指定
+    # 投稿する内容を指定
     if total_minutes > 0:
         min_count = format(line_count // total_minutes, ",")
     else:
         min_count = "0"
 
-    tweet_template_file = f"{os.path.dirname(os.path.abspath(sys.argv[0]))}/tweet_template.txt"
-    if not os.path.exists(tweet_template_file):
-        logger.info(f"エラー：ツイートテンプレートファイルが見つかりません。{tweet_template_file}")
+    post_template_file = f"{os.path.dirname(os.path.abspath(sys.argv[0]))}/post_template.txt"
+    if not os.path.exists(post_template_file):
+        logger.info(f"エラー：投稿テンプレートファイルが見つかりません。{post_template_file}")
         return False
     """
     #nasne の録画を再生しました。
@@ -266,7 +248,7 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
     実況コメント数: 3,227 （毎分: 107コメント）
     #ニコニコ実況 #komenasne
     """
-    with open(tweet_template_file, "r", encoding="utf-8") as f:
+    with open(post_template_file, "r", encoding="utf-8") as f:
         message = f.read()
         message = start_date_time.strftime(message)
         message = message.format(
@@ -277,11 +259,23 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
             min_count=min_count,
         )
 
-    # ツイートする
+    # Bluesky へ投稿する（atproto は起動を軽くするため必要時にのみ import）
     try:
-        status = client.create_tweet(text=message)
+        from atproto import Client, client_utils
+
+        client = Client()
+        client.login(bluesky_handle, bluesky_app_password)
+        # ハッシュタグをリンク付きで投稿する
+        text = client_utils.TextBuilder()
+        parts = re.split(r"(#\S+)", message)
+        for part in parts:
+            if part.startswith("#"):
+                text.tag(part, part[1:])
+            else:
+                text.text(part)
+        status = client.send_post(text)
     except Exception as e:
-        print(f"エラー：ツイートに失敗しました。{e.args[0]}")
+        print(f"エラー：Blueskyへの投稿に失敗しました。{e}")
         status = False
         try:
             err_log_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "post_err.log")
@@ -289,9 +283,23 @@ def twitter_write(ch_name, start_date_time, total_minutes, title, line_count):
                 err_f.write(message + "\n\n--------------------------------------------------\n\n")
         except Exception as log_err:
             logger.info(f"エラー：投稿失敗ログの書き込みに失敗しました。{log_err}")
-        pass
-    # ツイートが成功したかどうかを返す
+    # 投稿が成功したかどうかを返す
     return status
+
+
+def launch_detached(cmd):
+    """親プロセス（DOSプロンプト等）を閉じても生き残るように子プロセスを起動する（SPEC §2.1）"""
+    if os.name == "nt":
+        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        try:
+            # Windows Terminal の「ウィンドウを閉じるとプロセスツリーごと終了」から脱出する
+            subprocess.Popen(cmd, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, close_fds=True)
+        except OSError:
+            # Job が breakaway を許可していない環境ではフラグを外してリトライ
+            subprocess.Popen(cmd, creationflags=flags, close_fds=True)
+    else:
+        # macOS / Linux（開発用）
+        subprocess.Popen(cmd, start_new_session=True)
 
 
 def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title):
@@ -312,12 +320,12 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
 
     # mode_silentがFalseの時はコメントビュアーを起動
     if not mode_silent:
-        # commenomiが存在するかどうかをチェック
-        if not os.path.exists(commenomi_path):
-            logger.info(f"エラー：commenomiが見つからないため、終了します。{commenomi_path}")
+        # komeviewが存在するかどうかをチェック
+        if player_path is None or not os.path.exists(player_path):
+            logger.info(f"エラー：komeviewが見つからないため、終了します。{player_path}")
             sys.exit(1)
 
-        subprocess.Popen([commenomi_path, logfile])
+        launch_detached([player_path, logfile])
     return True
 
 
@@ -351,21 +359,35 @@ def open_jkcommentviewer(service_id):
         logger.info(f"エラー：jkcommentviewer.exeが見つかりません。{jkcommentviewer_path}")
         return False
     else:
-        subprocess.Popen([jkcommentviewer_path, url])
+        launch_detached([jkcommentviewer_path, url])
     return True
 
 
+def query_nasne_status(ip_addr):
+    """1台の nasne の視聴状態を取得する。失敗時は None（電源オフ等）"""
+    try:
+        r = requests.get(f"http://{ip_addr}:64210/status/dtcpipClientListGet", timeout=NASNE_API_TIMEOUT)
+        return json.loads(r.text)
+    except (requests.exceptions.RequestException, ValueError):
+        return None
+
+
 def playing_nasnes():
-    for ip_addr in nasne_ips:
-        try:
-            get_playing_info = requests.get(f"http://{ip_addr}:64210/status/dtcpipClientListGet")
-        except:
+    # 全 nasne に並列で問い合わせる（タイムアウト2秒。電源オフの個体がいても待たされない / SPEC §2.5）
+    with ThreadPoolExecutor(max_workers=max(len(nasne_ips), 1)) as executor:
+        statuses = list(executor.map(query_nasne_status, nasne_ips))
+
+    if all(s is None for s in statuses):
+        logger.info(f"エラー：NASNEが見つかりません。（照会先: {', '.join(nasne_ips)}）")
+        if mode_monitoring:
+            return
+        else:
+            sys.exit(1)  # 致命的エラー
+
+    for ip_addr, playing_info in zip(nasne_ips, statuses):
+        if playing_info is None:
             logger.info(f"エラー：{ip_addr} のNASNEが見つかりません。")
-            if mode_monitoring:
-                return
-            else:
-                sys.exit(1)  # 致命的エラー
-        playing_info = json.loads(get_playing_info.text)
+            continue
         try:
             is_rec_playing = playing_info["client"][0]["purpose"] == 2  # 1:ライブ視聴 2:録画視聴 3:ムーブ
             if is_rec_playing:
@@ -426,16 +448,25 @@ logger = get_logger()
 
 ini = configparser.ConfigParser(interpolation=None)
 ini.read(os.path.dirname(os.path.abspath(sys.argv[0])) + "/komenasne.ini", "UTF-8")
-nase_ini = ini["NASNE"]["ip"]
-nasne_ips = [x.strip() for x in nase_ini.split(",")]
+
+# ini の ip は「手動指定（任意）」。IPv4 らしい表記だけを採用する（未設定なら自動発見 / SPEC §2.4）
+try:
+    _ip_raw = ini["NASNE"]["ip"]
+except KeyError:
+    _ip_raw = ""
+manual_ips = [x.strip() for x in _ip_raw.split(",") if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", x.strip())]
+nasne_ips = []  # 実際の解決は引数パース後（--discover / 初回探索を考慮）
 
 headers = {"user-agent": "komenasne"}
 
-# iniファイル読み込み
+# iniファイル読み込み（komeview_path 優先。旧キー commenomi_path も互換で読む / SPEC §2.1）
 try:
-    commenomi_path = Path(ini["PLAYER"]["commenomi_path"])
+    player_path = Path(ini["PLAYER"]["komeview_path"])
 except KeyError:
-    commenomi_path = None
+    try:
+        player_path = Path(ini["PLAYER"]["commenomi_path"])
+    except KeyError:
+        player_path = None
 
 try:
     kakolog_dir = Path(ini["LOG"]["kakolog_dir"])
@@ -457,23 +488,15 @@ try:
 except KeyError:
     jkcommentviewer_path = None
 
-# Twitter APIを使用するためのキーを指定
+# Bluesky 投稿設定（未設定なら投稿しない / SPEC §2.2）
 try:
-    consumer_key = ini["TWITTER"]["consumer_key"]
+    bluesky_handle = ini["BLUESKY"]["handle"].strip()
 except KeyError:
-    consumer_key = ""
+    bluesky_handle = ""
 try:
-    consumer_secret = ini["TWITTER"]["consumer_secret"]
+    bluesky_app_password = ini["BLUESKY"]["app_password"].strip()
 except KeyError:
-    consumer_secret = ""
-try:
-    access_token = ini["TWITTER"]["access_token"]
-except KeyError:
-    access_token = ""
-try:
-    access_token_secret = ini["TWITTER"]["access_token_secret"]
-except KeyError:
-    access_token_secret = ""
+    bluesky_app_password = ""
 
 # ヘルプ表示
 usage_message = """直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH:MM] [total_minutes] option:[title]
@@ -485,6 +508,8 @@ usage_message = """直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH
 常駐モード: komenasne.exe --mode_monitoring
 再生中の番組時間を強制上書き: komenasne.exe --fixlive 30
 ファイル名から時間変更で再取得: komenasne.exe --fixrec 30 "TOKYO MX_20230210_001202_30_お兄ちゃんはおしまい！ ＃６.xml"
+nasneの再探索（IPが変わった時に実行）: komenasne.exe --discover
+録画失敗リストの表示: komenasne.exe --recerror [絞り込みキーワード]
 
 チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定
 """
@@ -498,7 +523,7 @@ parser.add_argument("channel", nargs="?", default="None")
 parser.add_argument("date_time", nargs="?", default=0)
 parser.add_argument("total_minutes", type=int, nargs="?", default=0)
 parser.add_argument("title", nargs="?", default="タイトル不明")
-parser.add_argument("-limit", choices=["none", "high", "middle", "low"])
+parser.add_argument("--discover", action="store_true")  # nasneを再探索してキャッシュを更新
 parser.add_argument("--mode_silent", action="store_true")
 parser.add_argument("--mode_monitoring", action="store_true")
 parser.add_argument("--fixrec", nargs=2)
@@ -529,6 +554,43 @@ else:
 
 if not mode_silent:
     logger.info("starting..")
+
+# ───────────────────────────────────────────────
+# nasne の IP 解決（SPEC §2.4）
+#   優先度: ini の手動指定 > キャッシュ
+#   探索(SSDP)を行うのは --discover 指定時と、初回起動（手動指定もキャッシュも無い）時のみ
+# ───────────────────────────────────────────────
+direct_mode = args.channel != "None" or bool(args.fixrec)
+
+if args.discover:
+    print("nasne を探索しています…（数秒かかります）")
+    found = discover_nasnes()
+    if not found:
+        print("nasne が見つかりませんでした。同じネットワークに居るか、ファイアウォールの設定を確認してください。")
+        sys.exit(1)
+    for ip, name in found:
+        print(f"  {name}: {ip}")
+    save_cached_ips([ip for ip, _ in found])
+    print(f"{len(found)}台の nasne をキャッシュに保存しました。次回からこのIPを使用します。")
+    sys.exit(0)
+
+if not direct_mode:
+    if manual_ips:
+        nasne_ips = manual_ips
+    else:
+        nasne_ips = load_cached_ips() or []
+        if not nasne_ips:
+            # 初回起動時のみ自動探索
+            print("初回起動: nasne を探索しています…（数秒かかります）")
+            found = discover_nasnes()
+            if not found:
+                logger.info(
+                    "エラー：nasne が見つかりません。komenasne.ini の ip を設定するか、--discover を実行してください。"
+                )
+                sys.exit(1)
+            nasne_ips = [ip for ip, _ in found]
+            save_cached_ips(nasne_ips)
+            print("発見: " + ", ".join(f"{name}={ip}" for ip, name in found))
 
 # 録画失敗リスト
 if args.recerror:

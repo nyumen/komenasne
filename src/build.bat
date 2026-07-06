@@ -1,34 +1,21 @@
 @echo off
-cd /d "%~dp0"
-REM 仮想環境を作成するか確認
+rem Local build script (output: dist\komenasne\)
+cd /d "%~dp0.."
+
 if not exist ".venv" (
-    echo 仮想環境を作成中...
+    echo Creating venv...
     python -m venv .venv
 )
 
-REM 仮想環境を有効化
-echo 仮想環境を有効化しています...
 call .venv\Scripts\activate
 
-REM モジュールをインストール
-if exist requirements.txt (
-    echo モジュールをインストール中...
-    pip install -r requirements.txt
-) else (
-    echo requirements.txt が見つかりませんでした。処理を終了します。
-    exit /b 1
-)
-
-REM PyInstallerでEXEファイルを作成
-echo EXEファイルを作成中...
+echo Installing dependencies...
+pip install .
 pip install pyinstaller
-pyinstaller komenasne.py --paths=. --icon=komenasne.ico --onefile --clean 
 
-move dist\komenasne.exe ..\
+echo Building (onedir)...
+pyinstaller src\komenasne.py --name komenasne --paths src --icon src\komenasne.ico --clean --noconfirm
 
-REM 処理完了
-echo 処理が完了しました。
+echo Done: dist\komenasne\
 pause
-
-REM 仮想環境を無効化
 deactivate

@@ -1,0 +1,9 @@
+#nasne の録画を再生しました。
+------------
+{title}
+
+チャンネル: {ch_name}
+録画日時: %Y年%m月%d日 %H時%M分%S秒
+長さ: {total_minutes}分
+実況コメント数: {line_count} （毎分: {min_count}コメント）
+#ニコニコ実況 #komenasne
