@@ -81,6 +81,10 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install .
 
+# 設定ファイルを用意（src/komenasne.ini はリポジトリに含まれません）
+copy komenasne.ini.example src\komenasne.ini
+# → src\komenasne.ini を自分の環境に合わせて編集
+
 # 実行
 python src\komenasne.py --discover
 
