@@ -8,6 +8,5 @@ dist/
 komenasne.ini
 komenasne.log
 post_err.log
-nasne_ips.cache
 .DS_Store
 *.egg-info/

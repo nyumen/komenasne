@@ -24,7 +24,7 @@ JST = ZoneInfo("Asia/Tokyo")
 NASNE_API_TIMEOUT = 2.0
 
 from common.channel_list import ChannelList
-from common.nasne_discovery import discover_nasnes, load_cached_ips, save_cached_ips
+from common.nasne_discovery import discover_nasnes, update_ini_ips
 
 
 def get_logger():
@@ -446,10 +446,11 @@ def get_rec_ng_list(ip_addr):
 logger = get_logger()
 
 
+ini_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "komenasne.ini")
 ini = configparser.ConfigParser(interpolation=None)
-ini.read(os.path.dirname(os.path.abspath(sys.argv[0])) + "/komenasne.ini", "UTF-8")
+ini.read(ini_path, "UTF-8")
 
-# ini の ip は「手動指定（任意）」。IPv4 らしい表記だけを採用する（未設定なら自動発見 / SPEC §2.4）
+# ini の ip（IPv4 らしい表記だけを採用）。未設定なら初回起動時に自動発見して ini に書き込む（SPEC §2.4）
 try:
     _ip_raw = ini["NASNE"]["ip"]
 except KeyError:
@@ -557,8 +558,8 @@ if not mode_silent:
 
 # ───────────────────────────────────────────────
 # nasne の IP 解決（SPEC §2.4）
-#   優先度: ini の手動指定 > キャッシュ
-#   探索(SSDP)を行うのは --discover 指定時と、初回起動（手動指定もキャッシュも無い）時のみ
+#   ini の ip を使用。未設定なら探索して ini に書き込む（初回起動）
+#   探索(SSDP)を行うのは --discover 指定時と、初回起動時のみ
 # ───────────────────────────────────────────────
 direct_mode = args.channel != "None" or bool(args.fixrec)
 
@@ -570,27 +571,30 @@ if args.discover:
         sys.exit(1)
     for ip, name in found:
         print(f"  {name}: {ip}")
-    save_cached_ips([ip for ip, _ in found])
-    print(f"{len(found)}台の nasne をキャッシュに保存しました。次回からこのIPを使用します。")
+    if update_ini_ips(ini_path, [ip for ip, _ in found]):
+        print(f"{len(found)}台の nasne を komenasne.ini に反映しました。")
+    else:
+        print(f"エラー：komenasne.ini への書き込みに失敗しました。{ini_path}")
+        sys.exit(1)
     sys.exit(0)
 
 if not direct_mode:
     if manual_ips:
         nasne_ips = manual_ips
     else:
-        nasne_ips = load_cached_ips() or []
-        if not nasne_ips:
-            # 初回起動時のみ自動探索
-            print("初回起動: nasne を探索しています…（数秒かかります）")
-            found = discover_nasnes()
-            if not found:
-                logger.info(
-                    "エラー：nasne が見つかりません。komenasne.ini の ip を設定するか、--discover を実行してください。"
-                )
-                sys.exit(1)
-            nasne_ips = [ip for ip, _ in found]
-            save_cached_ips(nasne_ips)
-            print("発見: " + ", ".join(f"{name}={ip}" for ip, name in found))
+        # 初回起動（ini の ip が未設定）: 自動探索して ini に反映
+        print("nasne のIPが未設定のため探索しています…（数秒かかります）")
+        found = discover_nasnes()
+        if not found:
+            logger.info(
+                "エラー：nasne が見つかりません。komenasne.ini の ip を設定するか、--discover を実行してください。"
+            )
+            sys.exit(1)
+        nasne_ips = [ip for ip, _ in found]
+        if update_ini_ips(ini_path, nasne_ips):
+            print("発見: " + ", ".join(f"{name}={ip}" for ip, name in found) + " → komenasne.ini に反映しました。")
+        else:
+            logger.info(f"エラー：komenasne.ini への書き込みに失敗しました。{ini_path}")
 
 # 録画失敗リスト
 if args.recerror:

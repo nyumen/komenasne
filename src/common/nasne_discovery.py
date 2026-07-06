@@ -1,4 +1,4 @@
-# nasne の自動発見（SSDP / UPnP M-SEARCH）とIPキャッシュ (SPEC §2.4)
+# nasne の自動発見（SSDP / UPnP M-SEARCH）(SPEC §2.4)
 #
 # 探索方式（SONY製・バッファロー製の両方で実機検証済み）:
 #   1. nasne 固有のサービス urn:schemas-sony-com:service:X_Telepathy:1 で M-SEARCH
@@ -7,13 +7,11 @@
 #   2. 応答したIPに対し nasne API (http://<ip>:64210/status/boxNameGet) を並列で叩き、
 #      応答したものだけを nasne と確定（名前もここから取得）
 #
-# - 発見結果は nasne_ips.cache (JSON) に保存し、通常起動時はキャッシュを使う
-# - 探索を行うのは「初回起動時（ini手動指定もキャッシュも無い）」と「--discover 指定時」のみ
+# - 発見結果は komenasne.ini の [NASNE] ip に書き戻す（コメント行は保持）
+# - 探索を行うのは「初回起動時（ini の ip が未設定）」と「--discover 指定時」のみ
 import json
-import os
 import re
 import socket
-import sys
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -21,34 +19,44 @@ from concurrent.futures import ThreadPoolExecutor
 SSDP_ADDR = ("239.255.255.250", 1900)
 # nasne 固有の UPnP サービス（SONY製・バッファロー製とも応答する）
 SSDP_ST_NASNE = "urn:schemas-sony-com:service:X_Telepathy:1"
-CACHE_FILENAME = "nasne_ips.cache"
 
 
-def _app_dir():
-    return os.path.dirname(os.path.abspath(sys.argv[0]))
-
-
-def _cache_path():
-    return os.path.join(_app_dir(), CACHE_FILENAME)
-
-
-def load_cached_ips():
-    """キャッシュされた nasne の IP リストを返す。無ければ None"""
+def update_ini_ips(ini_path, ips):
+    """ini の [NASNE] セクションの ip 行だけを書き換える（configparser を使わずコメント行を保持する）"""
+    joined = ", ".join(ips)
     try:
-        with open(_cache_path(), "r", encoding="utf-8") as f:
-            data = json.load(f)
-        ips = data.get("ips")
-        if isinstance(ips, list) and ips:
-            return ips
-    except (OSError, ValueError):
-        pass
-    return None
+        with open(ini_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return False
 
+    out = []
+    in_nasne = False
+    replaced = False
+    for line in lines:
+        section = re.match(r"^\s*\[(.+)\]", line)
+        if section:
+            # [NASNE] を抜けるまでに ip 行が無ければセクション末尾に追加
+            if in_nasne and not replaced:
+                out.append(f"ip = {joined}\n")
+                replaced = True
+            in_nasne = section.group(1).strip().upper() == "NASNE"
+        elif in_nasne and not replaced and re.match(r"^\s*ip\s*=", line):
+            out.append(f"ip = {joined}\n")
+            replaced = True
+            continue
+        out.append(line)
 
-def save_cached_ips(ips):
+    if not replaced:
+        if in_nasne:
+            # ファイル末尾まで [NASNE] セクションだった場合
+            out.append(f"ip = {joined}\n")
+        else:
+            out.append(f"\n[NASNE]\nip = {joined}\n")
+
     try:
-        with open(_cache_path(), "w", encoding="utf-8") as f:
-            json.dump({"ips": ips}, f, ensure_ascii=False, indent=2)
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.writelines(out)
         return True
     except OSError:
         return False
