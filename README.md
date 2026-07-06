@@ -62,6 +62,7 @@ nasneの動画再生と連動して、ニコニコ実況の過去ログコメン
 ```
 nasneの再探索（IPが変わった時に実行）: komenasne.exe --discover
 録画失敗リストの表示: komenasne.exe --recerror [絞り込みキーワード]
+録画済みリストをreclist.txtに書き出し: komenasne.exe --reclist [絞り込みキーワード]
 サイレントモード（XML作成のみ）: komenasne.exe --mode_silent
 常駐モード: komenasne.exe --mode_monitoring
 再生中の番組時間を強制上書き: komenasne.exe --fixlive 30

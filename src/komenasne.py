@@ -45,15 +45,18 @@ def get_logger():
 
 
 def get_item(ip_addr, playing_content_id):
-    get_title_lists = requests.get(
+    for item in get_title_list(ip_addr):
+        if item["id"] == playing_content_id:
+            return item
+
+
+def get_title_list(ip_addr):
+    """nasne の録画済みタイトル一覧を返す"""
+    r = requests.get(
         f"http://{ip_addr}:64220/recorded/titleListGet?searchCriteria=0&filter=0&startingIndex=0&requestedCount=0&sortCriteria=0&withDescriptionLong=0&withUserData=0",
         timeout=10,
     )
-    title_lists = json.loads(get_title_lists.text)
-
-    for item in title_lists["item"]:
-        if item["id"] == playing_content_id:
-            return item
+    return json.loads(r.text).get("item", [])
 
 
 def get_jkid(service_id):
@@ -420,6 +423,22 @@ def playing_nasnes():
             pass
     return False
 
+def get_rec_list(ip_addr):
+    """録画済みリストを、再生時に生成されるXMLファイル名と同じ形式で返す（--reclist 用）"""
+    results = []
+    for item in get_title_list(ip_addr):
+        title = replace_title(item["title"])
+        jkid = get_jkid(item["serviceId"])
+        # jk_names に無いチャンネルは nasne が持つチャンネル名にフォールバック
+        ch_name = (ChannelList.jk_names.get(jkid) if jkid else None) or item.get(
+            "channelName", str(item.get("serviceId"))
+        )
+        start_date_time = get_datetime(item["startDateTime"])
+        total_minutes = round(int(item["duration"]) / 60)
+        results.append(f'{ch_name}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}.xml')
+    return results
+
+
 def get_rec_ng_list(ip_addr):
     r = requests.get(f"http://{ip_addr}:64210/status/recNgListGet", timeout=3)
     r.raise_for_status()
@@ -511,6 +530,7 @@ usage_message = """直接取得モード: komenasne.exe [channel] [yyyy-mm-dd HH
 ファイル名から時間変更で再取得: komenasne.exe --fixrec 30 "TOKYO MX_20230210_001202_30_お兄ちゃんはおしまい！ ＃６.xml"
 nasneの再探索（IPが変わった時に実行）: komenasne.exe --discover
 録画失敗リストの表示: komenasne.exe --recerror [絞り込みキーワード]
+録画済みリストをreclist.txtに書き出し: komenasne.exe --reclist [絞り込みキーワード]
 
 チャンネルリスト: NHK Eテレ 日テレ テレ朝 TBS テレ東 フジ MX BSフジ BS11または以下のjk**を指定
 """
@@ -530,6 +550,7 @@ parser.add_argument("--mode_monitoring", action="store_true")
 parser.add_argument("--fixrec", nargs=2)
 parser.add_argument("--fixlive", type=int)  # 再生中動画の再生時間を上書き.分を指定する
 parser.add_argument("--recerror", nargs="?", const=True, default=False)
+parser.add_argument("--reclist", nargs="?", const=True, default=False)  # 録画済みリストをtxtに書き出し
 
 # 引数を解析する
 args = parser.parse_args()
@@ -611,6 +632,41 @@ if args.recerror:
                 print("録画失敗はありません。")
         except Exception as e:
             logger.info(f"エラー：{ip} の録画失敗リスト取得に失敗しました。{e}")
+    sys.exit(0)
+
+# 録画済みリストを reclist.txt に書き出し
+if args.reclist:
+    keyword = args.reclist if isinstance(args.reclist, str) else None
+
+    def _safe_rec_list(ip):
+        try:
+            return get_rec_list(ip)
+        except Exception as e:
+            logger.info(f"エラー：{ip} の録画リスト取得に失敗しました。{e}")
+            return []
+
+    # 全 nasne から並列で取得
+    with ThreadPoolExecutor(max_workers=max(len(nasne_ips), 1)) as executor:
+        rec_lists = list(executor.map(_safe_rec_list, nasne_ips))
+    lines = [f for sub in rec_lists for f in sub]
+    if keyword:
+        lines = [f for f in lines if keyword in f]
+
+    # 重複を除き、録画日時順に並べる
+    def _sort_key(f):
+        m = re.search(r"_(\d{8}_\d{6})_", f)
+        return m.group(1) if m else f
+
+    lines = sorted(set(lines), key=_sort_key)
+
+    out_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "reclist.txt")
+    try:
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + ("\n" if lines else ""))
+    except OSError as e:
+        print(f"エラー：reclist.txt の書き込みに失敗しました。{e}")
+        sys.exit(1)
+    print(f"{len(lines)}件を書き出しました: {out_path}")
     sys.exit(0)
 
 # 直接取得モード
