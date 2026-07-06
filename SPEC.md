@@ -144,7 +144,54 @@ komeview と同じタグ駆動のリリースフローにする。
 
 ---
 
-## 5. 将来構想（本SPECのスコープ外）
+## 5. フェーズ2: Webプレイヤー / `--serve` モード
+
+外出先で iPad の torne アプリで nasne の動画を再生しながら、**Split View のブラウザで実況コメントを再生する**ための機能。
+自宅PCの komenasne がコメント配信サーバになり、iPad のブラウザがプレイヤー（komeview-lite）になる。
+
+```
+[自宅PC] komenasne --serve
+   ├ GET /            … Webプレイヤー（komeview-lite）を配信
+   └ GET /api/play    … アクセス時キック: nasneの再生を検出→過去ログ取得→XMLを返す
+        ↑ Tailscale 経由（iPad にも Tailscale アプリ）
+[iPad] torne で動画再生 ＋ Split View のブラウザでコメント再生（手動同期）
+```
+
+### 5.1 サーバ（`--serve [port]`）
+- Python 標準ライブラリの `http.server`（ThreadingHTTPServer）で実装。**新規依存なし**。
+- デフォルトポート 8765。`0.0.0.0` にバインド（LAN / Tailscale から到達可能）。
+- エンドポイント:
+  - `GET /` … プレイヤーページ（`web/` 配下の静的ファイル）
+  - `GET /api/play` … **キックAPI**。既存の `playing_nasnes` 相当を1回実行し、
+    再生中の録画があれば過去ログを取得（既存XMLがあれば再利用）して
+    `{ title, filename, xml }` を JSON で返す。再生なし/取得失敗はエラー内容を返す。
+- 認証は持たない。**Tailscale の閉域網に依存**する（LAN外に生で公開しない前提を README に明記）。
+- 将来: ドメイン取得後に Cloudflare Tunnel + Access（無料・メール認証）での常設公開を検討（§5.3）。
+
+### 5.2 Webプレイヤー（komeview-lite）
+komeview の縮小版を素の HTML/JS 1ページで実装（ビルド工程なし）。niconicomments は UMD ビルドを `web/` にベンダリングする。
+
+- **表示**: 黒背景（Split View で torne と並べる前提）に niconicomments でコメント描画。
+- **再生**: komeview と同じ仮想クロック・手動同期。ロード完了で自動再生開始。
+- **タッチUI**（iPad にキーボードは無い）:
+  - 再生/一時停止・±1秒・±15秒 ボタン
+  - 速度（1.0 / 1.25 / 1.5 / 1.75 / 2.0 の巡回ボタン）
+  - **マーカーボタン**: ｷﾀ / OP / A / B / C / ED（検出できたものだけ表示。k/o/a/b/c/e キーの代替）
+  - シークバー（ドラッグ対応・マーカー点表示）
+- **マーカー検出**: komeview の `findMarkerOccurrences`（複数回検出・5分統合・閾値）を JS に移植。
+- **フロー**: ページを開く →「コメント取得」ボタン（または自動で1回）→ `/api/play` → 再生開始
+  → torne 側の再生開始に合わせて「ｷﾀ」ボタン等で頭出し。
+
+### 5.3 初期スコープ外（検討事項）
+- 自動追従（サーバがポーリングして再生開始を自動検出）… 今回は**アクセス時キックで十分**
+- コメントの勢い波形・コメントリスト・NG機能（komeview 本体にある高度な機能）
+- 過去に取得済みの kakolog 一覧からの選択再生
+- ブラウザの Fullscreen API 対応（iPadOS Safari の挙動を実機確認してから）
+- Cloudflare Tunnel + Access での公開（**ドメイン未所持のため後回し**。年千円程度で取得可）
+
+---
+
+## 6. 将来構想（本SPECのスコープ外）
 
 - **komeview への統合（案A）**: nasne ポーリング・過去ログ取得を komeview（Electron main / TypeScript）へ移植し、
   XMLファイルを経由せず直接コメント再生する。「チャンネル+日時指定の取得」も komeview の UI に載せる。
