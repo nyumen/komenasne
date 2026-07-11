@@ -563,7 +563,8 @@ def is_recording_failed(ip_addr, start_date_time, title):
     """再生中の録画が nasne の録画失敗リストに含まれるかを判定する（SPEC §2.10）。
 
     ディスク容量不足等で途中終了した録画は実録画時間が予約と異なるため、
-    ファイル名（分数入り）ではなく「タイトル完全一致＋開始時刻±5分」で突き合わせる。
+    ファイル名（分数入り）ではなく「タイトル完全一致＋開始時刻±1分」で突き合わせる。
+    問い合わせ先は再生中の録画を持つ nasne の1台のみ。
     リストが取得できない場合は False（従来動作）。
     """
     try:
@@ -581,7 +582,7 @@ def is_recording_failed(ip_addr, start_date_time, title):
             ng_start = parse(ng["scheduledStartDateTime"]).astimezone(JST).replace(tzinfo=None)
         except (KeyError, ValueError):
             continue
-        if abs((ng_start - start_date_time).total_seconds()) <= 300:
+        if abs((ng_start - start_date_time).total_seconds()) <= 60:
             return True
     return False
 
