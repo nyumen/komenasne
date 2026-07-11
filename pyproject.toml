@@ -1,6 +1,6 @@
 [project]
 name = "komenasne"
-version = "3.1.0b1"
+version = "3.1.0"
 description = "nasneの動画再生と連動してニコニコ実況の過去ログを再生するツール"
 requires-python = ">=3.12"
 authors = [{ name = "kamm" }]
