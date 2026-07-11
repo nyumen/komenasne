@@ -168,7 +168,7 @@ def get_content_data(ip_addr, playing_content_id):
     return jkid, start_date_time, end_date_time, total_minutes, title
 
 
-def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile):
+def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, skip_post=False):
     start_unixtime = start_date_time.timestamp()
     end_unixtime = end_date_time.timestamp()
     try:
@@ -218,9 +218,11 @@ def get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, 
         )
     )
 
-    ret = bluesky_write(ChannelList.jk_names[jkid], start_date_time, total_minutes, title, line_count)
-    if not ret:
-        logger.info(f"postに失敗しました。対象: {title}")
+    # 録画失敗（途中終了）した番組は中途半端な視聴情報になるため投稿しない（SPEC §2.10）
+    if not skip_post:
+        ret = bluesky_write(ChannelList.jk_names[jkid], start_date_time, total_minutes, title, line_count)
+        if not ret:
+            logger.info(f"postに失敗しました。対象: {title}")
 
     return True
 
@@ -305,7 +307,7 @@ def launch_detached(cmd):
         subprocess.Popen(cmd, start_new_session=True)
 
 
-def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title):
+def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title, skip_post=False):
 
     base_file = f'{ChannelList.jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}'
     logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
@@ -314,7 +316,7 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
     if not os.path.exists(logfile):
         # 過去ログAPIから取得
         logger.info(f"ファイル名:{base_file}.xml")
-        ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile)
+        ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, skip_post=skip_post)
         if not ret:
             return False
     else:
@@ -403,8 +405,16 @@ def playing_nasnes():
                 if datetime.timestamp(
                     end_date_time + timedelta(minutes=5)
                 ) < datetime.timestamp((datetime.now())):
-                    # komeview用のコメント再生処理
-                    ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
+                    # 録画失敗（途中終了）した番組かチェック（SPEC §2.10）
+                    rec_failed = is_recording_failed(ip_addr, start_date_time, title)
+                    if rec_failed and mode_silent:
+                        # ポーリング時（--mode_silent / --mode_monitoring）はXML保存も投稿も行わない
+                        logger.info(f"録画失敗（途中終了）の番組のためスキップします: {title}")
+                        return True
+                    # komeview用のコメント再生処理（録画失敗時は投稿だけ抑止してXML・再生は通常どおり）
+                    ret = open_comment_viewer(
+                        jkid, start_date_time, end_date_time, total_minutes, title, skip_post=rec_failed
+                    )
                     if not ret:
                         # 取得失敗の詳細は直前でログ出力済み。
                         # 「nasneの動画が見つからない」という紛らわしいメッセージを出さずに終える
@@ -462,7 +472,11 @@ def api_play_payload():
                 )
                 logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
                 if not os.path.exists(logfile):
-                    ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile)
+                    # 録画失敗（途中終了）した番組は投稿しない（XMLは再生に必要なので保存する / SPEC §2.10）
+                    rec_failed = is_recording_failed(ip_addr, start_date_time, title)
+                    ret = get_kakolog_api(
+                        start_date_time, end_date_time, title, jkid, total_minutes, logfile, skip_post=rec_failed
+                    )
                     if not ret:
                         return {"error": "ニコニコ実況過去ログAPIから取得できませんでした。"}
                 with open(logfile, "r", encoding="utf-8") as f:
@@ -543,6 +557,33 @@ def get_rec_list(ip_addr):
         total_minutes = round(int(item["duration"]) / 60)
         results.append(f'{ch_name}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}.xml')
     return results
+
+
+def is_recording_failed(ip_addr, start_date_time, title):
+    """再生中の録画が nasne の録画失敗リストに含まれるかを判定する（SPEC §2.10）。
+
+    ディスク容量不足等で途中終了した録画は実録画時間が予約と異なるため、
+    ファイル名（分数入り）ではなく「タイトル完全一致＋開始時刻±5分」で突き合わせる。
+    リストが取得できない場合は False（従来動作）。
+    """
+    try:
+        r = requests.get(f"http://{ip_addr}:64210/status/recNgListGet", timeout=3)
+        r.raise_for_status()
+        data = r.json()
+    except Exception:
+        return False
+
+    for ng in data.get("item", []):
+        ng_title = replace_title(ng.get("title", ""))
+        if ng_title != title:
+            continue
+        try:
+            ng_start = parse(ng["scheduledStartDateTime"]).astimezone(JST).replace(tzinfo=None)
+        except (KeyError, ValueError):
+            continue
+        if abs((ng_start - start_date_time).total_seconds()) <= 300:
+            return True
+    return False
 
 
 def get_rec_ng_list(ip_addr):
