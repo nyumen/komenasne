@@ -307,7 +307,7 @@ def launch_detached(cmd):
         subprocess.Popen(cmd, start_new_session=True)
 
 
-def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title, skip_post=False):
+def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title):
 
     base_file = f'{ChannelList.jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}'
     logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
@@ -316,7 +316,7 @@ def open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, tit
     if not os.path.exists(logfile):
         # 過去ログAPIから取得
         logger.info(f"ファイル名:{base_file}.xml")
-        ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile, skip_post=skip_post)
+        ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile)
         if not ret:
             return False
     else:
@@ -405,16 +405,25 @@ def playing_nasnes():
                 if datetime.timestamp(
                     end_date_time + timedelta(minutes=5)
                 ) < datetime.timestamp((datetime.now())):
-                    # 録画失敗（途中終了）した番組かチェック（SPEC §2.10）
-                    rec_failed = is_recording_failed(ip_addr, start_date_time, title)
-                    if rec_failed and mode_silent:
-                        # ポーリング時（--mode_silent / --mode_monitoring）はXML保存も投稿も行わない
-                        logger.info(f"録画失敗（途中終了）の番組のためスキップします: {title}")
-                        return True
-                    # komeview用のコメント再生処理（録画失敗時は投稿だけ抑止してXML・再生は通常どおり）
-                    ret = open_comment_viewer(
-                        jkid, start_date_time, end_date_time, total_minutes, title, skip_post=rec_failed
+                    # 録画失敗（途中終了）した番組の共通処理（SPEC §2.10 / 全モード共通）
+                    failed_logfile = handle_failed_recording(
+                        ip_addr, jkid, start_date_time, end_date_time, total_minutes, title
                     )
+                    if failed_logfile is False:
+                        # 取得失敗（詳細はログ出力済み）
+                        if mode_monitoring:
+                            return True
+                        sys.exit(1)
+                    if failed_logfile:
+                        # 視聴用XML（kakolog_err側）で komeview を起動
+                        if not mode_silent:
+                            if player_path is None or not os.path.exists(player_path):
+                                logger.info(f"エラー：komeviewが見つからないため、終了します。{player_path}")
+                                sys.exit(1)
+                            launch_detached([player_path, failed_logfile])
+                        return True
+                    # komeview用のコメント再生処理
+                    ret = open_comment_viewer(jkid, start_date_time, end_date_time, total_minutes, title)
                     if not ret:
                         # 取得失敗の詳細は直前でログ出力済み。
                         # 「nasneの動画が見つからない」という紛らわしいメッセージを出さずに終える
@@ -467,16 +476,25 @@ def api_play_payload():
                 if datetime.timestamp(end_date_time + timedelta(minutes=5)) >= datetime.timestamp(datetime.now()):
                     return {"error": "番組終了から5分間は過去ログを取得できません。しばらく待ってから再取得してください。"}
 
+                # 録画失敗（途中終了）した番組の共通処理（SPEC §2.10 / 全モード共通）
+                failed_logfile = handle_failed_recording(
+                    ip_addr, jkid, start_date_time, end_date_time, total_minutes, title
+                )
+                if failed_logfile is False:
+                    return {"error": "ニコニコ実況過去ログAPIから取得できませんでした。"}
+                if failed_logfile:
+                    # 視聴用XML（kakolog_err側）を返す
+                    base = os.path.splitext(os.path.basename(failed_logfile))[0]
+                    with open(failed_logfile, "r", encoding="utf-8") as f:
+                        xml = f.read()
+                    return {"title": base, "filename": f"{base}.xml", "xml": xml}
+
                 base_file = (
                     f'{ChannelList.jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}'
                 )
                 logfile = os.path.join(kakolog_dir, f"{base_file}.xml")
                 if not os.path.exists(logfile):
-                    # 録画失敗（途中終了）した番組は投稿しない（XMLは再生に必要なので保存する / SPEC §2.10）
-                    rec_failed = is_recording_failed(ip_addr, start_date_time, title)
-                    ret = get_kakolog_api(
-                        start_date_time, end_date_time, title, jkid, total_minutes, logfile, skip_post=rec_failed
-                    )
+                    ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, logfile)
                     if not ret:
                         return {"error": "ニコニコ実況過去ログAPIから取得できませんでした。"}
                 with open(logfile, "r", encoding="utf-8") as f:
@@ -559,20 +577,23 @@ def get_rec_list(ip_addr):
     return results
 
 
-def is_recording_failed(ip_addr, start_date_time, title):
+def find_failed_schedule(ip_addr, start_date_time, title):
     """再生中の録画が nasne の録画失敗リストに含まれるかを判定する（SPEC §2.10）。
 
     ディスク容量不足等で途中終了した録画は実録画時間が予約と異なるため、
     ファイル名（分数入り）ではなく「タイトル完全一致＋開始時刻±1分」で突き合わせる。
     問い合わせ先は再生中の録画を持つ nasne の1台のみ。
-    リストが取得できない場合は False（従来動作）。
+
+    Returns:
+        該当あり: (予約開始-15秒 の datetime, 予約分数)  ※--recerror のファイル名形式と同じ基準
+        該当なし / リスト取得失敗: None（従来動作）
     """
     try:
         r = requests.get(f"http://{ip_addr}:64210/status/recNgListGet", timeout=3)
         r.raise_for_status()
         data = r.json()
     except Exception:
-        return False
+        return None
 
     for ng in data.get("item", []):
         ng_title = replace_title(ng.get("title", ""))
@@ -583,8 +604,55 @@ def is_recording_failed(ip_addr, start_date_time, title):
         except (KeyError, ValueError):
             continue
         if abs((ng_start - start_date_time).total_seconds()) <= 60:
-            return True
-    return False
+            sched_start = ng_start - timedelta(seconds=15)
+            sched_minutes = int(ng.get("scheduledDuration", 0)) // 60
+            return (sched_start, sched_minutes)
+    return None
+
+
+def handle_failed_recording(ip_addr, jkid, start_date_time, end_date_time, total_minutes, title):
+    """録画失敗（途中終了）番組の共通処理（SPEC §2.10 / 全モード共通）。
+
+    - kakolog_err/ に実録画時間ぶんのXMLを保存（視聴用・投稿なし）
+    - kakolog/ に予約時間ぶんのXMLを --recerror と同じファイル名形式で保存し、
+      Blueskyにも投稿する（＝録画成功時と同じ記録を残す）
+    - kakolog_err/ に既にファイルがあれば処理済みとして即返す（API照会・投稿なし）
+
+    Returns:
+        None: 失敗録画ではない（呼び出し元は通常処理を続行）
+        str : 処理済み。視聴用XML（kakolog_err側）のパス
+        False: 失敗録画だが過去ログ取得に失敗
+    """
+    err_base = f'{ChannelList.jk_names[jkid]}_{start_date_time.strftime("%Y%m%d_%H%M%S")}_{total_minutes}_{title}'
+    err_logfile = os.path.join(kakolog_err_dir, f"{err_base}.xml")
+
+    # 2回目以降のポーリング: kakolog_err にあれば処理済み（recNgListGet の照会も不要）
+    if os.path.exists(err_logfile):
+        return err_logfile
+
+    sched = find_failed_schedule(ip_addr, start_date_time, title)
+    if sched is None:
+        return None
+    sched_start, sched_minutes = sched
+    logger.info(f"録画失敗（途中終了）の番組を検出しました: {title}")
+
+    # 1) 視聴用: 実録画時間ぶんを kakolog_err/ に保存（投稿なし）
+    logger.info(f"ファイル名:{err_base}.xml (kakolog_err)")
+    ret = get_kakolog_api(start_date_time, end_date_time, title, jkid, total_minutes, err_logfile, skip_post=True)
+    if not ret:
+        return False
+
+    # 2) 記録用: 予約時間ぶん（録画成功時と同じ結果）を kakolog/ に保存し Bluesky に投稿
+    rec_base = f'{ChannelList.jk_names[jkid]}_{sched_start.strftime("%Y%m%d_%H%M%S")}_{sched_minutes}_{title}'
+    rec_logfile = os.path.join(kakolog_dir, f"{rec_base}.xml")
+    if not os.path.exists(rec_logfile):
+        sched_end = sched_start + timedelta(minutes=sched_minutes) + timedelta(seconds=14)
+        logger.info(f"ファイル名:{rec_base}.xml (予約時間で取得)")
+        ret = get_kakolog_api(sched_start, sched_end, title, jkid, sched_minutes, rec_logfile)
+        if not ret:
+            logger.info("予約時間ぶんの過去ログ取得に失敗しました（視聴用XMLは保存済み）。")
+
+    return err_logfile
 
 
 def get_rec_ng_list(ip_addr):
@@ -644,6 +712,10 @@ try:
 
     # フォルダが無ければ作成する
     os.makedirs(kakolog_dir, exist_ok=True)
+
+    # 録画失敗番組の視聴用XML置き場（kakolog の隣に自動作成 / SPEC §2.10）
+    kakolog_err_dir = os.path.join(os.path.dirname(os.path.normpath(str(kakolog_dir))), "kakolog_err")
+    os.makedirs(kakolog_err_dir, exist_ok=True)
 
 except KeyError:
     logger.info("iniファイルにkakolog_dirを設定してください")

@@ -13,3 +13,4 @@ post_err.log
 .DS_Store
 *.egg-info/
 reclist.txt
+kakolog_err/
